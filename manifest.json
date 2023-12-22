@@ -1,11 +1,1 @@
-{
-	"id": "obsidian-sample-plugin",
-	"name": "Sample Plugin",
-	"version": "1.0.0",
-	"minAppVersion": "0.15.0",
-	"description": "This is a sample plugin for Obsidian. This plugin demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": false
-}
+{"id": "obsidian-image-inline", "name": "Image Inline", "version": "0.0.14", "minAppVersion": "1.0.0", "description": "This plugin adds a context menu option to convert images to base64 vice versa.", "author": "ZackaryW", "authorUrl": "https://github.com/ZackaryW", "isDesktopOnly": true}
