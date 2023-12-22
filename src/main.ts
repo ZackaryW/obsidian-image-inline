@@ -25,7 +25,7 @@ export default class ImageToBase64Plugin extends Plugin {
             id: 'convert-image-to-base64-hotkey',
             name: 'Convert Image to Base64 (Hotkey)',
             hotkeys: [{ modifiers: ["Ctrl", "Alt"], key: "v" }],
-            callback: () => this.convertImageToBase64(),
+            callback: () => this.handleHotkeyCommand(),
         });
 
         // Event listener for paste actions
@@ -52,6 +52,50 @@ export default class ImageToBase64Plugin extends Plugin {
         }));
     }
 
+    async handleHotkeyCommand() {
+        try {
+            const clipboardItems = await navigator.clipboard.read();
+            for (const clipboardItem of clipboardItems) {
+                for (const type of clipboardItem.types) {
+                    if (type.startsWith('image/')) {
+                        const blob = await clipboardItem.getType(type);
+                        this.convertImageBlobToBase64AndInsert(blob);
+                        break;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error accessing clipboard:', error);
+            new Notice('Failed to access clipboard.');
+        }
+    }
+
+    async convertImageBlobToBase64AndInsert(blob: Blob) {
+        const base64String = await this.convertBlobToBase64(blob);
+        this.insertTextIntoActiveNote(`![](${base64String})`);
+    }
+    
+    async convertBlobToBase64(blob: Blob): Promise<string> {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                resolve(reader.result as string);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    }
+    
+    insertTextIntoActiveNote(text: string) {
+        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (activeView) {
+            const editor = activeView.editor;
+            editor.replaceSelection(text);
+        } else {
+            new Notice('No active editor found');
+        }
+    }
+
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     }
@@ -60,10 +104,6 @@ export default class ImageToBase64Plugin extends Plugin {
         await this.saveData(this.settings);
     }
 
-    async convertImageToBase64() {
-        // Logic to convert an image to base64
-        new Notice('Image converted to base64!');
-    }
 }
 
 class ImageToBase64SettingTab extends PluginSettingTab {
