@@ -3,7 +3,7 @@
     "name": "Image Inline",
     "version": "0.1.1",
     "minAppVersion": "1.0.0",
-    "description": "This plugin adds a context menu option to convert images to base64 vice versa.",
+    "description": "Paste your image without attachment files",
     "author": "ZackaryW",
     "authorUrl": "https://github.com/ZackaryW",
     "isDesktopOnly": true
