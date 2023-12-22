@@ -1,1 +1,10 @@
-{"id": "obsidian-image-inline", "name": "Image Inline", "version": "0.0.19", "minAppVersion": "1.0.0", "description": "This plugin adds a context menu option to convert images to base64 vice versa.", "author": "ZackaryW", "authorUrl": "https://github.com/ZackaryW", "isDesktopOnly": true}
+{
+    "id": "obsidian-image-inline",
+    "name": "Image Inline",
+    "version": "0.1.0",
+    "minAppVersion": "1.0.0",
+    "description": "This plugin adds a context menu option to convert images to base64 vice versa.",
+    "author": "ZackaryW",
+    "authorUrl": "https://github.com/ZackaryW",
+    "isDesktopOnly": true
+}
