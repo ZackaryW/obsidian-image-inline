@@ -21,5 +21,7 @@ data.json
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
 
-testpit
-plugin
+test-vault
+build
+project.toml
+pysidian-release

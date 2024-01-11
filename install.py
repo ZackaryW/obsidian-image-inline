@@ -1,34 +1,28 @@
 import os
-import json
 import shutil
-import psutil
 
-if not os.path.exists("testpit"):
-    os.system('pysidian newVault testpit')
+if not os.path.exists("project.toml"):
+    os.system("pysidian init")
+    import toml
+    tomldata = toml.load("project.toml")
+    tomldata["pysidian"]["pluginDir"] = "build"
+    toml.dump(tomldata, open("project.toml", "w"))
 
-# kill obsidian
-for proc in psutil.process_iter():
-    if proc.name() == "obsidian":
-        proc.kill()
+os.makedirs("pysidian-release", exist_ok=True)
+os.makedirs("build", exist_ok=True)
+
+if not os.path.exists("test-vault"):
+    os.system("pysidian vault new test-vault")
+
+os.system("pysidian vault reg")
 
 os.system("npm run build")
-shutil.move("main.js", os.path.join("plugin", "main.js"))
+shutil.move("main.js", os.path.join("build", "main.js"))
+shutil.copy("manifest.json", os.path.join("build", "manifest.json"))
 
-# modify manifest.json-> version bump by 1
-with open("manifest.json", "r") as f:
-    """
-    version is in x.x.x
-    """
-    data = json.load(f)
-    versionSplitted = data["version"].split(".")
-    data["version"] = f"{versionSplitted[0]}.{versionSplitted[1]}.{str(int(versionSplitted[2]) + 1)}"
+os.system("pysidian commit")
+os.system("pysidian update")
+os.system("pysidian vault open")
 
-with open("manifest.json", "w") as f:
-    json.dump(data, f)
-
-shutil.copy("manifest.json", os.path.join("plugin", "manifest.json"))
-
-if os.path.exists("testpit/.obsidian/plugins/obsidian-image-inline"):
-    shutil.rmtree("testpit/.obsidian/plugins/obsidian-image-inline")
-# run pysidian
-os.system('pysidian selectVault testpit loadPlugin -p plugin openVault')
+input("Press Enter to continue...")
+os.system("pysidian vault unreg")
