@@ -21,7 +21,6 @@ data.json
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
 
-test-vault
+vault-test
+.pysidian
 build
-project.toml
-pysidian-release
