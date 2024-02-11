@@ -1,15 +1,23 @@
-import { App, Plugin, PluginSettingTab, Setting, Notice, MarkdownView, Editor } from 'obsidian';
-import { convertImageFileToBase64 } from './utils';
+
+import { App, Plugin, PluginSettingTab, Setting, Editor, getBlobArrayBuffer, Notice} from 'obsidian';
 
 interface ImageToBase64Settings {
     convertOnPaste: boolean;
-    convertOnHotkey: boolean;
 }
 
 const DEFAULT_SETTINGS: ImageToBase64Settings = {
     convertOnPaste: false,
-    convertOnHotkey: false
 };
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+    let binary = '';
+    const bytes = new Uint8Array(buffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
+}
 
 export default class ImageToBase64Plugin extends Plugin {
     settings: ImageToBase64Settings;
@@ -20,12 +28,15 @@ export default class ImageToBase64Plugin extends Plugin {
         // Add settings tab
         this.addSettingTab(new ImageToBase64SettingTab(this.app, this));
 
-        // Add command for conversion on hotkey
+        // add command palatte
         this.addCommand({
-            id: 'convert-image-to-base64-hotkey',
-            name: 'Convert Image to Base64 (Hotkey)',
-            hotkeys: [{ modifiers: ["Ctrl", "Alt"], key: "v" }],
-            callback: () => this.handleHotkeyCommand(),
+            id: 'toggle-convert-on-paste',
+            name: 'Toggle Convert on Paste',
+            callback: () => {
+                this.settings.convertOnPaste = !this.settings.convertOnPaste;
+                this.saveSettings();
+                new Notice(`Convert on paste is now ${this.settings.convertOnPaste ? 'enabled' : 'disabled'}`);
+            }
         });
 
         // Event listener for paste actions
@@ -38,8 +49,8 @@ export default class ImageToBase64Plugin extends Plugin {
                         const file = item.getAsFile();
                         if (file) {
                             try {
-                                const base64String = await convertImageFileToBase64(file);
-                                editor.replaceSelection(`![](${base64String})`);
+                                const base64String = arrayBufferToBase64(await getBlobArrayBuffer(file));
+                                editor.replaceSelection(`![](data:image/png;base64,${base64String})`);
                                 console.log('Pasted image converted to base64!');
                             } catch (error) {
                                 console.error('Error converting image to base64:', error);
@@ -50,50 +61,7 @@ export default class ImageToBase64Plugin extends Plugin {
                 }
             }
         }));
-    }
 
-    async handleHotkeyCommand() {
-        try {
-            const clipboardItems = await navigator.clipboard.read();
-            for (const clipboardItem of clipboardItems) {
-                for (const type of clipboardItem.types) {
-                    if (type.startsWith('image/')) {
-                        const blob = await clipboardItem.getType(type);
-                        this.convertImageBlobToBase64AndInsert(blob);
-                        break;
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error accessing clipboard:', error);
-            new Notice('Failed to access clipboard.');
-        }
-    }
-
-    async convertImageBlobToBase64AndInsert(blob: Blob) {
-        const base64String = await this.convertBlobToBase64(blob);
-        this.insertTextIntoActiveNote(`![](${base64String})`);
-    }
-    
-    async convertBlobToBase64(blob: Blob): Promise<string> {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                resolve(reader.result as string);
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-    }
-    
-    insertTextIntoActiveNote(text: string) {
-        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (activeView) {
-            const editor = activeView.editor;
-            editor.replaceSelection(text);
-        } else {
-            new Notice('No active editor found');
-        }
     }
 
     async loadSettings() {
@@ -118,8 +86,7 @@ class ImageToBase64SettingTab extends PluginSettingTab {
         const { containerEl } = this;
 
         containerEl.empty();
-        containerEl.createEl('h2', { text: 'Settings for Image to Base64 Plugin' });
-
+        // Removed header with plugin name
         new Setting(containerEl)
             .setName('Convert images on paste')
             .setDesc('Automatically convert pasted images to base64 strings.')
@@ -127,16 +94,6 @@ class ImageToBase64SettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.convertOnPaste)
                 .onChange(async (value) => {
                     this.plugin.settings.convertOnPaste = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName('Convert images with hotkey (Ctrl+Alt+V)')
-            .setDesc('Use a hotkey to convert pasted images to base64 strings.')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.convertOnHotkey)
-                .onChange(async (value) => {
-                    this.plugin.settings.convertOnHotkey = value;
                     await this.plugin.saveSettings();
                 }));
     }
