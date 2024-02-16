@@ -31,7 +31,7 @@ export default class ImageToBase64Plugin extends Plugin {
         // add command palatte
         this.addCommand({
             id: 'toggle-convert-on-paste',
-            name: 'Toggle Convert on Paste',
+            name: 'Enable/disable convert to base64 on paste',
             callback: () => {
                 this.settings.convertOnPaste = !this.settings.convertOnPaste;
                 this.saveSettings();
