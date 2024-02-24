@@ -39,6 +39,37 @@ export default class ImageToBase64Plugin extends Plugin {
             }
         });
 
+        // > this adds a manual paste command
+        this.addCommand({
+            id: 'paste-image-as-base64',
+            name: 'Paste Image as Base64',
+            editorCallback: async (editor: Editor) => {
+              navigator.clipboard.read().then(async (items) => {
+                for (const clipboardItem of items) {
+                  for (const type of clipboardItem.types) {
+                    if (!(type.indexOf("image") === 0)) {
+                      continue;
+                    }
+                    const blob = await clipboardItem.getType(type);
+                    const arrayBuffer = await new Response(blob).arrayBuffer();
+                    const base64 = arrayBufferToBase64(arrayBuffer);
+                    
+                    // Determine where to insert the new line with the image
+                    const cursor = editor.getCursor();
+                    const imgMarkdown = `![](data:image/jpeg;base64,${base64})\n`;
+                    
+                    // Insert the base64 image on a new line at the current cursor position
+                    editor.replaceRange(imgMarkdown, cursor);
+                  }
+                }
+                new Notice('No image found in clipboard.');
+              }).catch(err => {
+                console.error("Failed to read clipboard contents: ", err);
+                new Notice('Error accessing clipboard.');
+              });
+            }
+          });
+
         // Event listener for paste actions
         this.registerEvent(this.app.workspace.on('editor-paste', async (evt: ClipboardEvent, editor: Editor) => {
             if (this.settings.convertOnPaste && evt.clipboardData) {
