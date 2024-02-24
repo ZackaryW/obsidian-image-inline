@@ -44,7 +44,7 @@ export default class ImageToBase64Plugin extends Plugin {
         // > this adds a manual paste command
         this.addCommand({
             id: 'paste-image-as-base64',
-            name: 'Paste Image as Base64',
+            name: 'Paste image as Base64',
             editorCallback: async (editor: Editor) => {
               navigator.clipboard.read().then(async (items) => {
 
