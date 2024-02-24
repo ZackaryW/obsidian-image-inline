@@ -3,10 +3,12 @@ import { App, Plugin, PluginSettingTab, Setting, Editor, getBlobArrayBuffer, Not
 
 interface ImageToBase64Settings {
     convertOnPaste: boolean;
+    appendNewLineAfterPaste: boolean;
 }
 
 const DEFAULT_SETTINGS: ImageToBase64Settings = {
     convertOnPaste: false,
+    appendNewLineAfterPaste: false,
 };
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -45,6 +47,7 @@ export default class ImageToBase64Plugin extends Plugin {
             name: 'Paste Image as Base64',
             editorCallback: async (editor: Editor) => {
               navigator.clipboard.read().then(async (items) => {
+
                 for (const clipboardItem of items) {
                   for (const type of clipboardItem.types) {
                     if (!(type.indexOf("image") === 0)) {
@@ -57,16 +60,25 @@ export default class ImageToBase64Plugin extends Plugin {
                     // Determine where to insert the new line with the image
                     const cursor = editor.getCursor();
                     const imgMarkdown = `![](data:image/jpeg;base64,${base64})\n`;
-                    
+
                     // Insert the base64 image on a new line at the current cursor position
                     editor.replaceRange(imgMarkdown, cursor);
+                    
+                      
+                    const newCursorPos = {
+                        line: cursor.line,
+                        ch: imgMarkdown.length
+                    };
+
+                    editor.setCursor(newCursorPos);
+
                   }
                 }
-                new Notice('No image found in clipboard.');
               }).catch(err => {
                 console.error("Failed to read clipboard contents: ", err);
                 new Notice('Error accessing clipboard.');
               });
+
             }
           });
 
@@ -81,7 +93,7 @@ export default class ImageToBase64Plugin extends Plugin {
                         if (file) {
                             try {
                                 const base64String = arrayBufferToBase64(await getBlobArrayBuffer(file));
-                                editor.replaceSelection(`![](data:image/png;base64,${base64String})`);
+                                editor.replaceSelection(`![](data:image/png;base64,${base64String})${this.settings.appendNewLineAfterPaste ? '\n' : ''}`);
                                 console.log('Pasted image converted to base64!');
                             } catch (error) {
                                 console.error('Error converting image to base64:', error);
@@ -125,6 +137,16 @@ class ImageToBase64SettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.convertOnPaste)
                 .onChange(async (value) => {
                     this.plugin.settings.convertOnPaste = value;
+                    await this.plugin.saveSettings();
+                }));
+
+            new Setting(containerEl)
+            .setName('Append new line after paste')
+            .setDesc('Prevent immediate expansion of base64 link by appending a new line after the image is pasted.')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.appendNewLineAfterPaste)
+                .onChange(async (value) => {
+                    this.plugin.settings.appendNewLineAfterPaste = value;
                     await this.plugin.saveSettings();
                 }));
     }
