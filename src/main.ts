@@ -5,6 +5,7 @@ import {
 	Editor,
 	TFile,
 	getBlobArrayBuffer,
+	MarkdownView,
 } from "obsidian";
 import {
 	arrayBufferToBase64,
@@ -22,6 +23,7 @@ export default class ImageToBase64Plugin extends Plugin {
 	settings: ImageToBase64Settings;
 
 	async onload() {
+
 		await this.loadSettings();
 
 		// Add settings tab
@@ -137,44 +139,89 @@ export default class ImageToBase64Plugin extends Plugin {
 			this.app.workspace.on(
 				"editor-paste",
 				async (evt: ClipboardEvent, editor: Editor) => {
-					if (this.settings.convertOnPaste && evt.clipboardData) {
-						const items = Array.from(evt.clipboardData.items);
-						for (const item of items) {
-							if (item.type.startsWith("image")) {
-								evt.preventDefault();
-								const file = item.getAsFile();
-								if (file) {
-									try {
-										const base64String =
-											arrayBufferToBase64(
-												await getBlobArrayBuffer(file)
-											);
-										editor.replaceSelection(
-											`![](data:image/png;base64,${base64String})${
-												this.settings
-													.appendNewLineAfterPaste
-													? "\n"
-													: ""
-											}`
-										);
-										console.log(
-											"Pasted image converted to base64!"
-										);
-									} catch (error) {
-										console.error(
-											"Error converting image to base64:",
-											error
-										);
-									}
-									break;
+					if (!(this.settings.convertOnPaste && evt.clipboardData)) {
+						return;
+					}
+					const items = Array.from(evt.clipboardData.items);
+					
+					evt.preventDefault();
+					if (!items.some(item => item.type.startsWith("image"))) {
+						return;
+					}
+		
+					let cursor = editor.getCursor(); // Initial cursor position
+		
+					items.forEach(async (item) => {
+						if (item.type.startsWith("image")) {
+							console.log("Detected " + item.type + " kind " + item.kind);
+							const file = item.getAsFile();
+							console.log("Converting file " + file?.name + " to base64");
+							if (file) {
+								try {
+									const base64String = arrayBufferToBase64(
+										await getBlobArrayBuffer(file)
+									);
+									const imgMarkdown = `![](data:image/png;base64,${base64String})\n`;
+		
+									// Insert the base64 image at the current cursor position
+									editor.replaceRange(imgMarkdown, cursor);
+		
+									// Update the cursor position
+									cursor = { line: cursor.line + 1, ch: 0 };
+									editor.setCursor(cursor);
+								} catch (error) {
+									console.error("Error converting image to base64:", error);
 								}
 							}
 						}
-					}
+					});
 				}
 			)
 		);
+		
+        
+		// drag file in
+		this.registerDomEvent(document, 'drop', async (event: DragEvent) => {
+			if (!this.settings.convertOnDrop) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+		
+			const editor = this.app.workspace.activeEditor?.editor;
+			if (!editor) {
+				console.log("No active editor found.");
+				return;
+			}
+			
+			if (event.dataTransfer && event.dataTransfer.files.length > 0) {
+				let cursor = editor.getCursor(); // Initial cursor position
+				console.log(`Initial cursor position: ${cursor.line}, ${cursor.ch}`);
+				
+				Array.from(event.dataTransfer.files).forEach(async (file, index) => {
+					console.log(`Processing file ${index + 1}/${event.dataTransfer?.files.length}: ${file.name} (${file.type})`);
+					
+					if (file.type.startsWith('image')) {
+						const arrayBuffer = await file.arrayBuffer();
+						const base64 = arrayBufferToBase64(arrayBuffer);
+						
+						const imgMarkdown = `![](data:image/${file.type.split('/')[1]};base64,${base64})\n`;
+						editor.replaceRange(imgMarkdown, cursor);
+						
+						// Update the cursor position for the next insertion
+						cursor = { line: cursor.line + 1, ch: 0 };
+						
+						// Log the new cursor position
+						console.log(`New cursor position: ${cursor.line}, ${cursor.ch}`);
+
+						editor.setCursor(cursor);
+					}
+				});
+			}
+		}, true);
+
 	}
+
 
 	async convertAllImagesToBase64(
 		content: string,

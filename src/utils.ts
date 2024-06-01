@@ -1,4 +1,4 @@
-import { TFile, Vault} from "obsidian";
+import { Notice, TFile, Vault} from "obsidian";
 
 export function arrayBufferToBase64(buffer: ArrayBuffer): string {
     let binary = '';

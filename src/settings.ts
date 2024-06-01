@@ -3,12 +3,12 @@ import type ImageToBase64Plugin from './main';
 
 export interface ImageToBase64Settings {
     convertOnPaste: boolean;
-    appendNewLineAfterPaste: boolean;
+    convertOnDrop: boolean;
 }
 
 export const DEFAULT_SETTINGS: ImageToBase64Settings = {
     convertOnPaste: false,
-    appendNewLineAfterPaste: true,
+    convertOnDrop: true
 };
 
 export class ImageToBase64SettingTab extends PluginSettingTab {
@@ -32,14 +32,14 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
                     this.plugin.settings.convertOnPaste = value;
                     await this.plugin.saveSettings();
                 }));
-
+        
         new Setting(containerEl)
-            .setName('Append new line after paste')
-            .setDesc('Prevent immediate expansion of base64 link by appending a new line after the image is pasted.')
+            .setName("Convert images on drop")
+            .setDesc("Automatically convert dropped images to base64 strings.")
             .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.appendNewLineAfterPaste)
+                .setValue(this.plugin.settings.convertOnDrop)
                 .onChange(async (value) => {
-                    this.plugin.settings.appendNewLineAfterPaste = value;
+                    this.plugin.settings.convertOnDrop = value;
                     await this.plugin.saveSettings();
                 }));
     }
