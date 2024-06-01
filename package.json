@@ -1,11 +1,11 @@
 {
-	"name": "obsidian-sample-plugin",
-	"version": "1.0.0",
-	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
-	"main": "main.js",
+	"name": "obsidian-image-inline",
+	"version": "0.9.0",
+	"description": "Paste your image without attachment files",
+	"main": "output/main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && python scripts/postbuild.py",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [],
@@ -19,9 +19,6 @@
 		"esbuild": "0.17.3",
 		"obsidian": "latest",
 		"tslib": "2.4.0",
-		"typescript": "^4.9.5"
-	},
-	"dependencies": {
-		"electron": "^25.0.1"
+		"typescript": "4.7.4"
 	}
 }
