@@ -8,7 +8,7 @@ export interface ImageToBase64Settings {
 
 export const DEFAULT_SETTINGS: ImageToBase64Settings = {
     convertOnPaste: false,
-    appendNewLineAfterPaste: false,
+    appendNewLineAfterPaste: true,
 };
 
 export class ImageToBase64SettingTab extends PluginSettingTab {
