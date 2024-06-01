@@ -1,0 +1,10 @@
+{
+    "id": "image-inline",
+    "name": "Image Inline",
+    "version": "0.9.0",
+    "minAppVersion": "1.0.0",
+    "description": "Paste your image without attachment files",
+    "author": "ZackaryW",
+    "authorUrl": "https://github.com/ZackaryW",
+    "isDesktopOnly": false
+}
