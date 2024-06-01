@@ -96,19 +96,34 @@ export default class ImageToBase64Plugin extends Plugin {
 						skipInternalLinks: boolean;
 						skipRemoteLinks: boolean;
 						customFilters: string[];
+						forAllFiles: boolean;
 					}) => {
-						const file = this.app.workspace.getActiveFile();
-						if (!file) return;
-
-						const content = await this.app.vault.read(file);
-						const updatedContent =
-							await this.convertAllImagesToBase64(
-								content,
-								file,
-								filters
+						if (filters.forAllFiles) {
+							// filter to only include md
+							var targetFiles = this.app.vault.getFiles().filter(
+								(file) => file.extension === "md"
 							);
+							console.log("Converting " + targetFiles.length + " files");
+						} else {
+							const afile = this.app.workspace.getActiveFile();
+							if (!afile) return;
+							var targetFiles = [afile];
+						}
+						
+						// Convert all image attachments to inline base64
+						for (const file of targetFiles) {
+							console.log("Converting file " + file.path);
+							const content = await this.app.vault.read(file);
+							const updatedContent =
+								await this.convertAllImagesToBase64(
+									content,
+									file,
+									filters
+								);
 
-						await this.app.vault.modify(file, updatedContent);
+							await this.app.vault.modify(file, updatedContent);
+						}
+
 						new Notice(
 							"All image attachments have been converted to inline base64."
 						);
@@ -161,47 +176,60 @@ export default class ImageToBase64Plugin extends Plugin {
 		);
 	}
 
-    
+	async convertAllImagesToBase64(
+		content: string,
+		file: TFile,
+		filters: {
+			skipInternalLinks: boolean;
+			skipRemoteLinks: boolean;
+			customFilters: string[];
+			forAllFiles: boolean;
+		}
+	): Promise<string> {
+		// Match image links that are not already inline base64 images
+		const imageLinks = content.match(
+			/!\[.*?\]\(((?!data:).*?)\)|!\[\[([^\]]+?)\]\]/g
+		);
+		if (!imageLinks) return content;
 
-	async convertAllImagesToBase64(content: string, file: TFile, filters: { skipInternalLinks: boolean; skipRemoteLinks: boolean; customFilters: string[] }): Promise<string> {
-        // Match image links that are not already inline base64 images
-        const imageLinks = content.match(/!\[.*?\]\(((?!data:).*?)\)|!\[\[([^\]]+?)\]\]/g);
-        if (!imageLinks) return content;
-    
-        for (const link of imageLinks) {
-            let match = link.match(/!\[.*?\]\((.*?)\)/) || link.match(/!\[\[([^\]]+?)\]\]/);
-            if (!match) continue;
-    
-            const imagePath = match[1] || match[2];
-            if (shouldSkipImage(link, imagePath, filters)) {
-                continue;
-            }
-    
-            let base64: string;
-    
-            if (imagePath.startsWith("http")) {
-                // Handle remote images
-                try {
-                    base64 = await fetchRemoteImageToBase64(imagePath);
-                } catch (error) {
-                    console.error("Error fetching remote image:", error);
-                    continue;
-                }
-            } else {
-                // Handle local images
-                const imageFile = this.app.metadataCache.getFirstLinkpathDest(imagePath, file.path);
-                if (!imageFile) continue;
-    
-                base64 = await fileToBase64(imageFile, this.app.vault);
-            }
-    
-            const dataUrl = `data:image/png;base64,${base64}`;
-            content = content.replace(link, `![](${dataUrl})`);
-        }
-    
-        return content;
-    }
-    
+		for (const link of imageLinks) {
+			let match =
+				link.match(/!\[.*?\]\((.*?)\)/) ||
+				link.match(/!\[\[([^\]]+?)\]\]/);
+			if (!match) continue;
+
+			const imagePath = match[1] || match[2];
+			if (shouldSkipImage(link, imagePath, filters)) {
+				continue;
+			}
+
+			let base64: string;
+
+			if (imagePath.startsWith("http")) {
+				// Handle remote images
+				try {
+					base64 = await fetchRemoteImageToBase64(imagePath);
+				} catch (error) {
+					console.error("Error fetching remote image:", error);
+					continue;
+				}
+			} else {
+				// Handle local images
+				const imageFile = this.app.metadataCache.getFirstLinkpathDest(
+					imagePath,
+					file.path
+				);
+				if (!imageFile) continue;
+
+				base64 = await fileToBase64(imageFile, this.app.vault);
+			}
+
+			const dataUrl = `data:image/png;base64,${base64}`;
+			content = content.replace(link, `![](${dataUrl})`);
+		}
+
+		return content;
+	}
 
 	async loadSettings() {
 		this.settings = Object.assign(
