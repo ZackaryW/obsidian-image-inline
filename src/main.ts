@@ -185,14 +185,15 @@ export default class ImageToBase64Plugin extends Plugin {
 			if (!this.settings.convertOnDrop) {
 				return;
 			}
-			event.preventDefault();
-			event.stopPropagation();
 		
 			const editor = this.app.workspace.activeEditor?.editor;
 			if (!editor) {
 				console.log("No active editor found.");
 				return;
 			}
+
+			event.preventDefault();
+			event.stopPropagation();
 			
 			if (event.dataTransfer && event.dataTransfer.files.length > 0) {
 				let cursor = editor.getCursor(); // Initial cursor position
