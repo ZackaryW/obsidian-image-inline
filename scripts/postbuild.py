@@ -104,6 +104,9 @@ if __name__ == "__main__":
     if os.path.exists("output/manifest.json"):
         os.remove("output/manifest.json")
     shutil.copyfile("src/manifest.json", "output/manifest.json")
+    if os.path.exists("manifest.json"):
+        os.remove("manifest.json")
+    shutil.copyfile("src/manifest.json", "manifest.json")
     create_vault()
     copy_plugin()
     open_vault()
