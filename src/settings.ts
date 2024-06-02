@@ -8,7 +8,7 @@ export interface ImageToBase64Settings {
 
 export const DEFAULT_SETTINGS: ImageToBase64Settings = {
     convertOnPaste: false,
-    convertOnDrop: true
+    convertOnDrop: false
 };
 
 export class ImageToBase64SettingTab extends PluginSettingTab {
