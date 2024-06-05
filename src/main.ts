@@ -144,10 +144,12 @@ export default class ImageToBase64Plugin extends Plugin {
 					}
 					const items = Array.from(evt.clipboardData.items);
 					
-					evt.preventDefault();
+					
 					if (!items.some(item => item.type.startsWith("image"))) {
 						return;
 					}
+
+					evt.preventDefault();
 		
 					let cursor = editor.getCursor(); // Initial cursor position
 		
