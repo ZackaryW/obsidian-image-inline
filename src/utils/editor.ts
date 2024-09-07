@@ -14,7 +14,7 @@ export async function gatherClipboardItems(editor: Editor): Promise<any[]> {
 }
 
 async function filterClipboardItems(items: ClipboardItem[]): Promise<any[]> {
-	var filteredItems = [];
+	let filteredItems = [];
 	for (const clipboardItem of items) {
 		for (const type of clipboardItem.types) {
 			if (!type.startsWith("image")) {
@@ -33,6 +33,7 @@ export async function editorProcessItems(
 	items: any[],
 	plugin: ImageToBase64Plugin
 ): Promise<void> {
+
 	for (const item of items) {
 		const base64 = await toBase64(item, plugin);
 		const imgMarkdown = formatMarkdownBase64(base64, "") + "\n";

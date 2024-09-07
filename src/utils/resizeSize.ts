@@ -97,7 +97,7 @@ export async function resizingRulesCheck(
 				);
 			}
 
-			var minpercentage = 100;
+			let minpercentage = 100;
 			for (const [string, percentage] of plugin.settings.resizingRules) {
 				if (!string) {
 					continue;
@@ -127,4 +127,50 @@ export async function resizingRulesCheck(
 			reject(new Error("Unable to load image"));
 		};
 	});
+}
+
+function getImageSizeAndFileSize(buf: Buffer): Promise<{ width: number; height: number; filesize: number }> {
+    return new Promise((resolve, reject) => {
+        if (!buf || buf.length === 0) {
+            return reject(new Error("Invalid buffer"))
+        }
+
+        const image = new Image()
+        image.src = "data:image/png;base64," + buf.toString("base64")
+
+        image.onload = () => {
+            const width = image.width
+            const height = image.height
+            const filesize = buf.length / 1024; // Convert to KB
+
+            if (!width || !height) {
+                return reject(new Error("Unable to determine image dimensions"))
+            }
+
+            resolve({ width, height, filesize })
+        }
+
+        image.onerror = () => {
+            reject(new Error("Unable to load image"))
+        }
+    })
+}
+
+export async function checkThreshold(
+	buf: Buffer,
+	plugin: ImageToBase64Plugin
+): Promise<boolean> {
+	if (buf.length === 0) {
+		return false;
+	}
+
+	if (!plugin.settings.convertBase64ByThresholdToggle) {
+		return false;
+	}
+	const { filesize } = await getImageSizeAndFileSize(buf)
+	const res = (plugin.settings.convertBase64ByThreshold >= filesize) == plugin.settings.convertBase64ByThresholdStrategy
+	if (res){
+		console.log("paste to base64 is ignored for this image")
+	}
+	return res
 }

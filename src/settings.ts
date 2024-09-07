@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting, App } from "obsidian";
+import { PluginSettingTab, Setting, App, TextComponent } from "obsidian";
 import type ImageToBase64Plugin from "./main";
 import { registerDeprecatedCommands } from "./coms/__init__";
 
@@ -6,6 +6,10 @@ export interface ImageToBase64Settings {
 	convertOnPaste: boolean;
 	convertOnDrop: boolean;
 	autoAvoidExpansion: boolean;
+
+	convertBase64ByThresholdToggle : boolean;
+	convertBase64ByThresholdStrategy : boolean;
+	convertBase64ByThreshold : number;
 
 	enableResizing: boolean;
 	// tuples <int, int>
@@ -18,6 +22,9 @@ export const DEFAULT_SETTINGS: ImageToBase64Settings = {
 	convertOnPaste: true,
 	convertOnDrop: true,
 	autoAvoidExpansion: false,
+	convertBase64ByThresholdToggle : false,
+	convertBase64ByThresholdStrategy : false,
+	convertBase64ByThreshold : 0,
 	enableResizing: false,
 	resizingRules: [
 		["6000", 80],
@@ -40,7 +47,7 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName("Convert on Paste")
+			.setName("Convert on paste")
 			.setDesc("Convert images pasted into the editor to base64")
 			.addToggle((toggle) =>
 				toggle
@@ -52,7 +59,7 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Convert on Drop")
+			.setName("Convert on drop")
 			.setDesc("Convert images dropped into the editor to base64")
 			.addToggle((toggle) =>
 				toggle
@@ -64,7 +71,7 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Auto Scroll")
+			.setName("Prevent link expansion")
 			.setDesc(
 				"Automatically prevent the expansion of base64 image links.\
                 Currently only works with single images."
@@ -77,9 +84,58 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 					})
 			);
+		
+		//test
+		new Setting(containerEl)
+			.setName("Convert base64 by threshold")
+			.setDesc("Flip the toggle to enable this feature, does not work for batches")
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.convertBase64ByThresholdToggle)
+					.onChange(async (value) => {
+						this.plugin.settings.convertBase64ByThresholdToggle = value
+						await this.plugin.saveSettings()
+						thresholdValue.settingEl.style.display = value ? "block" : "none"
+						thresholdDirection.settingEl.style.display = value ? "block" : "none"
+					})
+			)
+		
+		const thresholdDirection = new Setting(containerEl)
+			.setName("How is it handled?")
+			.setDesc("Choose whether to trigger if its larger or smaller than the threshold")
+				.addDropdown((dropdown) =>
+   				dropdown
+   					.addOption("larger", "Larger than threshold")
+   					.addOption("smaller", "Smaller than threshold")
+   					.setValue(this.plugin.settings.convertBase64ByThresholdStrategy ? "larger" : "smaller")
+   					.onChange(async (value) => {
+   						this.plugin.settings.convertBase64ByThresholdStrategy = value === "larger"
+   						await this.plugin.saveSettings();
+   					})
+   			);
+   
+
+		const thresholdValue = new Setting(containerEl)
+			.setName("Threshold (KB)")
+			.setDesc("Convert images larger than this size (in KB) to base64")
+			.addText((text) =>
+				text
+					.setPlaceholder("Enter threshold in KB")
+					.setValue(String(this.plugin.settings.convertBase64ByThreshold || ""))
+					.onChange(async (value) => {
+						const numValue = Number(value)
+						if (!isNaN(numValue)) {
+							this.plugin.settings.convertBase64ByThreshold = numValue
+							await this.plugin.saveSettings()
+						}
+					})
+			)
+
+		thresholdValue.settingEl.style.display = this.plugin.settings.convertBase64ByThresholdToggle ? "block" : "none"
+		thresholdDirection.settingEl.style.display = this.plugin.settings.convertBase64ByThresholdToggle ? "block" : "none"
 
 		new Setting(containerEl)
-			.setName("Enable Resizing")
+			.setName("Enable resizing")
 			.setDesc("Enable resizing of base64 image links")
 			.addToggle((toggle) =>
 				toggle
@@ -91,7 +147,7 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
-			.setName("Resizing Rules")
+			.setName("Resizing rules")
 			.setDesc("Rules for resizing base64 image links")
 
 			.addButton((button) => {
