@@ -1,16 +1,28 @@
 # Image-Inline
-Sometimes, you just don't want to have images saved as separate files, cluttering your workspace. This plugin addresses that need by allowing you to convert images into base64 encoded strings and embed them directly within your notes. 
+Some vaults just doesn't feel right to have image files. 
 
 ## Features
-- paste image to base64 (both manual and automatic)
-- convert all images in this note to base64
-- drag and drop image conversion
+### Paste Image
+Paste images directly from clipboard.
 
-## Usage
-### Commands
-- Paste image as Base64
-- Convert all image attachments to inline base64
-- Enable/disable convert to base64 on paste
+![paste_in](./docs/paste_in.gif)
 
-## Planned
-- Image export (potentially image drag)
+### Drag and Drop Image
+Drag and drop images into the vault.
+
+![drag_in](./docs/drag_in.gif)
+
+### Auto Scroll
+Automatically scroll out of the expanded link
+
+![auto_scroll](./docs/auto_scroll.gif)
+
+### Resizing
+Easily resize images within the vault.
+
+![resizing](./docs/resizing.gif)
+
+### (Deprecated) Convert All 
+Convert all images to base64 embed. A newer Modal working in progress.
+
+![convert_all](./docs/convert_all.png)
