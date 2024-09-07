@@ -19,7 +19,7 @@ Automatically scroll out of the expanded link
 
 ### Resizing
 Easily resize images within the vault.
-
+![resizing_result](https://github.com/user-attachments/assets/9193d272-9a72-49dd-a0cc-16f55b827705)
 ![resizing](https://raw.githubusercontent.com/ZackaryW/obsidian-image-inline/master/docs/resizing.gif)
 
 ### (Deprecated) Convert All 
