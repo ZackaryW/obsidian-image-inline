@@ -121,18 +121,21 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 			.addText((text) =>
 				text
 					.setPlaceholder("Enter threshold in KB")
-					.setValue(String(this.plugin.settings.convertBase64ByThreshold || ""))
+					.setValue(String(this.plugin.settings.convertBase64ByThreshold || DEFAULT_SETTINGS.convertBase64ByThreshold))
 					.onChange(async (value) => {
 						const numValue = Number(value)
 						if (!isNaN(numValue)) {
 							this.plugin.settings.convertBase64ByThreshold = numValue
 							await this.plugin.saveSettings()
-						}
+						} 
 					})
 			)
 
 		thresholdValue.settingEl.style.display = this.plugin.settings.convertBase64ByThresholdToggle ? "block" : "none"
 		thresholdDirection.settingEl.style.display = this.plugin.settings.convertBase64ByThresholdToggle ? "block" : "none"
+
+		let resizingRulesList: Setting[] = [];
+		
 
 		new Setting(containerEl)
 			.setName("Enable resizing")
@@ -143,10 +146,15 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.enableResizing = value;
 						await this.plugin.saveSettings();
+						resizingRulesAddButton.settingEl.style.display = value ? "block" : "none";
+						resizingRulesList.forEach((rule) => {
+							rule.settingEl.style.display = value ? "block" : "none"
+						});
+						this.display();
 					})
 			);
 
-		new Setting(containerEl)
+		let resizingRulesAddButton = new Setting(containerEl)
 			.setName("Resizing rules")
 			.setDesc("Rules for resizing base64 image links")
 
@@ -155,9 +163,13 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 					const rule: [string, number] = ["", 0];
 					this.plugin.settings.resizingRules.push(rule);
 					this.plugin.saveSettings();
+
+					// hide rule setting list if disabled
 					this.display();
 				});
 			});
+		
+		
 
 		this.plugin.settings.resizingRules.forEach((rule, index) => {
 			const ruleType = rule[0].includes("x")
@@ -166,7 +178,7 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 			const ruleTypeColor =
 				ruleType === "X x Y" ? "red" : "green";
 			const ruleSetting = new Setting(containerEl);
-
+			resizingRulesList.push(ruleSetting);
 			const ruleLabel = ruleSetting.settingEl.createEl("span", {
 				text: ruleType,
 				attr: {
@@ -206,8 +218,12 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 					});
 				});
 		});
-
-        // enable deprecated methods toggle
+		resizingRulesAddButton.settingEl.style.display = this.plugin.settings.enableResizing ? "block" : "none";
+		resizingRulesList.forEach((rule) => {
+			rule.settingEl.style.display = this.plugin.settings.enableResizing ? "block" : "none"
+		});
+	
+		// enable deprecated methods toggle
         new Setting(containerEl)
             .setName("Enable deprecated methods")
             .setDesc("Enable deprecated methods")
@@ -226,5 +242,6 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
                     })
             );
 
+		
 	}
 }
