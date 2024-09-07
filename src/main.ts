@@ -14,7 +14,7 @@ export default class ImageToBase64Plugin extends Plugin {
 
     async onload(): Promise<void> {
         await this.loadSettings();
-        await this.addSettingTab(new ImageToBase64SettingTab(this.app, this));
+        this.addSettingTab(new ImageToBase64SettingTab(this.app, this));
         await registerAllCommands(this);
     }
 
