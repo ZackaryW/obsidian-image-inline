@@ -78,6 +78,8 @@ jobs:
           cp manifest.json output/
           if [ -f styles.css ]; then
             cp styles.css output/
+          if [ -f main.js ]; then
+            cp main.js output/
           fi
 
       - name: Create GitHub Release
