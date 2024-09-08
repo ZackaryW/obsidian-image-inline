@@ -35,3 +35,6 @@ Easily resize images within the vault.
 Convert all images to base64 embed. A newer Modal working in progress.
 
 ![convert_all](https://raw.githubusercontent.com/ZackaryW/obsidian-image-inline/master/docs//convert_all.png)
+
+# Note
+* command palette feature `Paste Image as Base64` is not affecteed by resizing rules.
