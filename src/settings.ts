@@ -2,6 +2,8 @@ import { PluginSettingTab, Setting, App, TextComponent } from "obsidian";
 import type ImageToBase64Plugin from "./main";
 import { registerDeprecatedCommands } from "./coms/__init__";
 
+let currentDeprecatedMethodsFlag = false;
+
 export interface ImageToBase64Settings {
 	convertOnPaste: boolean;
 	convertOnDrop: boolean;
@@ -224,21 +226,21 @@ export class ImageToBase64SettingTab extends PluginSettingTab {
 		});
 	
 		// enable deprecated methods toggle
-        new Setting(containerEl)
+		let deprecatedToggle = new Setting(containerEl);
+        deprecatedToggle
             .setName("Enable deprecated methods")
-            .setDesc("Enable deprecated methods")
+            .setDesc("Enables deprecated methods if not already loaded. More flips will take effect on next restart.")
             .addToggle((toggle) =>
                 toggle
             .setValue(this.plugin.settings.enableDeprecatedMethods)
             .onChange(async (value) => {
                         this.plugin.settings.enableDeprecatedMethods = value;
                         await this.plugin.saveSettings();
-                        if (value) {
-                            toggle.setDisabled(true);
-							
-							this.display();
+
+						if (value && !currentDeprecatedMethodsFlag) {
 							registerDeprecatedCommands(this.plugin);
-                        }
+							currentDeprecatedMethodsFlag = true;
+						} 
                     })
             );
 

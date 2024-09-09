@@ -10,7 +10,9 @@ export async function registerDeprecatedCommands(plugin: ImageToBase64Plugin) {
     if (!plugin.settings.enableDeprecatedMethods) {
         return;
     }
-	new Notice("Deprecated commands will be removed at a later major version.");
+	new Notice("Deprecated commands will be removed at a later major version.\n"
+		+ "\tconvert-all-images-to-base64\n"
+	);
     // Register the deprecated commands
     plugin.addCommand({
         id: "convert-all-images-to-base64",

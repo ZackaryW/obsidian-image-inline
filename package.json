@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-image-inline",
-	"version": "2.1.1",
+	"version": "2.1.2",
 	"description": "Paste your image without attachment files",
 	"main": "output/main.js",
 	"scripts": {
