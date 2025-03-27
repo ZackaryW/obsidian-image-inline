@@ -61,7 +61,7 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           VERSION=${{ github.event.inputs.version }}
-          npm version $VERSION --no-git-tag-version
+          npm pkg set version=$VERSION
           echo "Updated package.json to version $VERSION"
 
       - name: Update version in manifest.json
@@ -76,8 +76,14 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add package.json manifest.json
-          git commit -m "Bump version to $VERSION"
-          git push
+          
+          # Only commit if there are changes
+          if ! git diff --cached --quiet; then
+            git commit -m "Bump version to $VERSION"
+            git push
+          else
+            echo "No changes to commit"
+          fi
 
       - name: Build the project
         run: npm run build
