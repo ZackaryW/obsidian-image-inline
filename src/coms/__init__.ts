@@ -4,7 +4,7 @@ import { registerOnPaste, registerPaletteCommand } from "./clipboard";
 import { registerCursorListener } from "./cursor";
 import { registerDrag } from "./drag";
 import { ConvertAllModal } from "../modals/convertAll";
-
+import { linkDecorations } from "./antiLinkExpand";
 
 export async function registerDeprecatedCommands(plugin: ImageToBase64Plugin) {
     if (!plugin.settings.enableDeprecatedMethods) {
@@ -70,4 +70,6 @@ export async function registerAllCommands(plugin: ImageToBase64Plugin) {
     await registerCursorListener(plugin);
 
     await registerDeprecatedCommands(plugin);
+
+	await plugin.registerEditorExtension(linkDecorations);
 }

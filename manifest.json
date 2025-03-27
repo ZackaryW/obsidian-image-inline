@@ -1,7 +1,7 @@
 {
   "id": "image-inline",
   "name": "Image Inline",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "minAppVersion": "1.0.0",
   "description": "Paste your image without attachment files",
   "author": "ZackaryW",
