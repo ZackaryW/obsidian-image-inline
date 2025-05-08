@@ -39,7 +39,7 @@ const context = await esbuild.context({
     logLevel: "info",
     sourcemap: prod ? false : "inline",
     treeShaking: true,
-    outfile: "output/main.js",  // Updated path
+    outfile: "main.js",  // Updated path
 });
 
 if (prod) {
