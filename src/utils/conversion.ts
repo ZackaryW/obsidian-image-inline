@@ -89,7 +89,7 @@ export class Base64Conversion {
 
     async fromFile(file: File): Promise<Base64File> {
         const arrayBuffer = await file.arrayBuffer();
-        return new Base64File(arrayBuffer);
+        return new Base64File(arrayBuffer, file.name);
     }
     async fromTFile(tfile: TFile): Promise<Base64File> {
         const arrayBuffer = await tfile.vault.readBinary(tfile);

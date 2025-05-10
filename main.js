@@ -107,7 +107,7 @@ var Base64Conversion = class {
   }
   async fromFile(file) {
     const arrayBuffer = await file.arrayBuffer();
-    return new Base64File(arrayBuffer);
+    return new Base64File(arrayBuffer, file.name);
   }
   async fromTFile(tfile) {
     const arrayBuffer = await tfile.vault.readBinary(tfile);
