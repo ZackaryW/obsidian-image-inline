@@ -34,3 +34,5 @@ There are always some vaults where you do not want attachment images to be part 
 - Ditched the width/height trigger to make the process less expensive
 - Implemented all the requested features
 
+## Dev
+- Used custom tools for testing [obs-dev](https://github.com/ZackaryW/obs-dev)
