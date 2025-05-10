@@ -1,0 +1,51 @@
+name: Release Package
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+      - main.js
+      - manifest.json
+      - styles.css
+
+  workflow_dispatch:
+
+jobs:
+  release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build the project
+        run: npm run build
+
+      - name: Create Release Directory
+        run: |
+          mkdir -p output
+          cp manifest.json output/
+          if [ -f styles.css ]; then
+            cp styles.css output/
+          fi
+          if [ -f main.js ]; then
+            cp main.js output/
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(cat package.json | jq -r '.version')
+          gh release create "$VERSION" ./output/* --title "v$VERSION" --notes "Release $VERSION"
