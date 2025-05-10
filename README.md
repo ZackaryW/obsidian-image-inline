@@ -5,6 +5,9 @@ This is a niche plugin that allows you to inline images in your notes.
 There are always some vaults where you do not want attachment images to be part of the notes.
 
 ## Features 🎉
+
+![banner](/docs//banner.png)
+
 ### General
 - Paste/Drop images to inline them
 - Prevent the expansion of links
