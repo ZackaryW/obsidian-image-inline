@@ -1,40 +1,35 @@
-# Image-Inline
-Some vaults just doesn't feel right to have image files. 
+# Image Inline
+This is a niche plugin that allows you to inline images in your notes.
 
-## Features
-### Paste Image
-Paste images directly from clipboard.
+## Background
+There are always some vaults where you do not want attachment images to be part of the notes.
 
-![paste_in](https://raw.githubusercontent.com/ZackaryW/obsidian-image-inline/master/docs/paste_in.gif)
+## Features 🎉
 
-### Drag and Drop Image
-Drag and drop images into the vault.
+![banner](/docs//banner.png)
 
-![drag_in](https://raw.githubusercontent.com/ZackaryW/obsidian-image-inline/master/docs/drag_in.gif)
+### General
+- Paste/Drop images to inline them
+- Prevent the expansion of links
+- Image Resizing Options (expanded below)
 
-### Auto Scroll
-Automatically scroll out of the expanded link
+### Context Menus
+- Option to export the image to media folder
+- Option to export the image to a specific folder
+- Copy to clipboard (both image or base64 form)
 
-![auto_scroll](https://raw.githubusercontent.com/ZackaryW/obsidian-image-inline/master/docs/auto_scroll.gif)
+### Command Palette
+- Batch export images in a note/vault
 
-### Only Paste on threshold
-You can either select `smaller` or `larger` than the set threshold to trigger an action. 
+## Image Resizing Options
+### Option 1: Using size as a threshold
+- embed small images directly, and large images as attachments
 
-For example, if the threshold is set to `smaller` and 50KB, a picture of 40KB will be base64 encoded, while a picture that is 100KB will be saved as usual.
+### Option 2: Resize large images
+- resize large images based on the setting, while also having the option to save the original images in the media folder
 
-![threshold](https://raw.githubusercontent.com/ZackaryW/obsidian-image-inline/master/docs/threshold.png)
+## What Changed in v3.0?
+- Fixed the mobile issues (previously using non mobile supported features)
+- Ditched the width/height trigger to make the process less expensive
+- Implemented all the requested features
 
-
-### Resizing
-Easily resize images within the vault.
-
-![resizing_result](https://github.com/user-attachments/assets/9193d272-9a72-49dd-a0cc-16f55b827705)
-![resizing](https://raw.githubusercontent.com/ZackaryW/obsidian-image-inline/master/docs/resizing.gif)
-
-### (Deprecated) Convert All 
-Convert all images to base64 embed. A newer Modal working in progress.
-
-![convert_all](https://raw.githubusercontent.com/ZackaryW/obsidian-image-inline/master/docs//convert_all.png)
-
-# Note
-* command palette feature `Paste Image as Base64` is not affecteed by resizing rules.

@@ -5,8 +5,6 @@
 # npm
 node_modules
 
-output
-
 # Exclude sourcemaps
 *.map
 
@@ -16,3 +14,7 @@ data.json
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
 .test
+
+# Exclude output
+/testv/
+

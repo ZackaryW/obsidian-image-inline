@@ -1,25 +1,24 @@
 {
-	"name": "obsidian-image-inline",
-	"version": "2.2.0",
-	"description": "Paste your image without attachment files",
-	"main": "output/main.js",
-	"scripts": {
-		"dev": "node esbuild.config.mjs",
-		"test": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production && python .vscode/scripts/postbuild.py",
-		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-		"version": "node version-bump.mjs && git add manifest.json versions.json"
-	},
-	"keywords": [],
-	"author": "",
-	"license": "MIT",
-	"devDependencies": {
-		"@types/node": "^16.11.6",
-		"@typescript-eslint/eslint-plugin": "5.29.0",
-		"@typescript-eslint/parser": "5.29.0",
-		"builtin-modules": "3.3.0",
-		"esbuild": "^0.25.1",
-		"obsidian": "latest",
-		"tslib": "2.4.0",
-		"typescript": "4.7.4"
-	}
+    "name": "obsidian-image-inline",
+    "version": "3.0.0",
+    "description": "Paste your image without attachment files",
+    "main": "main.js",
+    "scripts": {
+        "dev": "node esbuild.config.mjs",
+        "test": "obs-dev plugin test --target testv",
+        "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "@types/node": "^16.11.6",
+        "@typescript-eslint/eslint-plugin": "5.29.0",
+        "@typescript-eslint/parser": "5.29.0",
+        "builtin-modules": "3.3.0",
+        "esbuild": "^0.25.1",
+        "obsidian": "latest",
+        "tslib": "2.4.0",
+        "typescript": "4.7.4"
+    }
 }

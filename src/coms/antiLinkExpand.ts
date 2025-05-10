@@ -50,4 +50,3 @@ export const linkDecorations = ViewPlugin.fromClass(class {
 }, {
     decorations: v => v.decorations
 });
-
