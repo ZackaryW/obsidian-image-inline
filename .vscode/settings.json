@@ -1,0 +1,12 @@
+{
+    "files.exclude": {
+        "**/.git": true,
+        "testv": true,
+        "node_modules": true,
+        ".editorconfig": true,
+        ".eslintrc": true,
+        ".eslintignore": true,
+        ".npmrc": true,
+        "esbuild.config.mjs": true
+    }
+}
