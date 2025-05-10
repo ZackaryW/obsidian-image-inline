@@ -3,6 +3,8 @@ import { Base64Conversion, Base64File } from './utils/conversion';
 import { linkDecorations } from './coms/antiLinkExpand';
 import { registerExportToLocal } from './comsContext/export';
 import { registerConvertImage } from './comsContext/convert';
+import { registerConvertCommand } from './commands/selectAndConvert';
+import { registerExportCommand } from './commands/selectAndExport';
 // Remember to rename these classes and interfaces!
 
 export interface ImageInlineSettings {
@@ -49,6 +51,12 @@ export default class ImageInlinePlugin extends Plugin {
 		await registerExportToLocal(this);
 
 		await registerConvertImage(this);
+
+		//  command to select and convert images
+		await registerConvertCommand(this);
+
+		//  command to select and export images
+		await registerExportCommand(this);
 
 		// Register paste event
 		this.registerEvent(
