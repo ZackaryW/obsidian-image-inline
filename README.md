@@ -10,16 +10,17 @@ There are always some vaults where you do not want attachment images to be part 
 
 ### General
 - Paste/Drop images to inline them
-- Prevent the expansion of links
+- Prevent the expansion of base64 data strings
 - Image Resizing Options (expanded below)
 
 ### Context Menus
 - Option to export the image to media folder
-- Option to export the image to a specific folder
-- Copy to clipboard (both image or base64 form)
+- Copy to clipboard (wip)
+- Directly convert image to base64 
 
 ### Command Palette
 - Batch export images in a note/vault
+- Batch convert images in a note/vault
 
 ## Image Resizing Options
 ### Option 1: Using size as a threshold
