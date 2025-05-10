@@ -5,12 +5,14 @@ import { registerExportToLocal } from './comsContext/export';
 import { registerConvertImage } from './comsContext/convert';
 import { registerConvertCommand } from './commands/selectAndConvert';
 import { registerExportCommand } from './commands/selectAndExport';
+import { registerCursorEscape } from './coms/cursorEscape';
 // Remember to rename these classes and interfaces!
 
 export interface ImageInlineSettings {
 	// General settings
 	convertOnPaste: boolean;
 	convertOnDrop: boolean;
+	autoEscapeLink: boolean; 
 	
 	// Resizing settings
 	enableResizing: boolean;
@@ -27,6 +29,7 @@ export interface ImageInlineSettings {
 const DEFAULT_SETTINGS: ImageInlineSettings = {
 	convertOnPaste: true,
 	convertOnDrop: true,
+	autoEscapeLink: true, // Default to true
 	enableResizing: false,
 	resizeStrategy: 'smaller',
 	smallerThreshold: 1000, // 1MB default
@@ -51,6 +54,9 @@ export default class ImageInlinePlugin extends Plugin {
 		await registerExportToLocal(this);
 
 		await registerConvertImage(this);
+
+		// Register cursor escape functionality
+		registerCursorEscape(this);
 
 		//  command to select and convert images
 		await registerConvertCommand(this);
@@ -252,6 +258,16 @@ class ImageInlineSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.convertOnDrop)
 				.onChange(async (value) => {
 					this.plugin.settings.convertOnDrop = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Auto escape base64 data section')
+			.setDesc('Automatically move cursor out of the base64 data section')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.autoEscapeLink)
+				.onChange(async (value) => {
+					this.plugin.settings.autoEscapeLink = value;
 					await this.plugin.saveSettings();
 				}));
 
