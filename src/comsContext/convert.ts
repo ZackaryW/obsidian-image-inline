@@ -1,6 +1,7 @@
 import { App, Editor, Modal, Notice, TFile } from "obsidian";
 import { Base64File } from "../utils/conversion";
 import ImageInlinePlugin from "../main";
+
 class ConvertToBase64Modal extends Modal {
 	private file: TFile;
 	private editor: Editor;
@@ -112,6 +113,151 @@ async function fetchOnlineImage(url: string): Promise<Base64File> {
 	}
 }
 
+async function handleImageResizing(
+	base64File: Base64File,
+	plugin: ImageInlinePlugin,
+	activeFile: TFile | null
+): Promise<{ processedFile: Base64File; shouldSaveAsAttachment: boolean }> {
+	const sizeInKB = base64File.size / 1024;
+	let processedFile = base64File;
+	let shouldSaveAsAttachment = false;
+
+	if (plugin.settings.enableResizing) {
+		if (plugin.settings.resizeStrategy === "smaller") {
+			if (sizeInKB > plugin.settings.smallerThreshold) {
+				shouldSaveAsAttachment = true;
+			}
+		} else {
+			// Larger strategy
+			if (
+				sizeInKB > plugin.settings.largerThreshold ||
+				plugin.settings.resizeSmallerFiles
+			) {
+				processedFile = await plugin.conversion.resize(
+					base64File,
+					plugin.settings.resizePercentage
+				);
+
+				if (plugin.settings.backupOriginalImage && activeFile) {
+					const timestamp = new Date()
+						.toISOString()
+						.replace(/[:.]/g, "-");
+					const backupFilename = `${base64File.filename.replace(
+						".png",
+						""
+					)}_original_${timestamp}.png`;
+
+					const targetPath =
+						await plugin.app.fileManager.getAvailablePathForAttachment(
+							backupFilename,
+							activeFile.path
+						);
+
+					const file = new File(
+						[base64File.buffer],
+						backupFilename,
+						{ type: "image/png" }
+					);
+					await plugin.app.vault.createBinary(
+						targetPath,
+						await file.arrayBuffer()
+					);
+				}
+			}
+		}
+	}
+
+	return { processedFile, shouldSaveAsAttachment };
+}
+
+async function convertOnlineImageToBase64(
+	imageUrl: string,
+	plugin: ImageInlinePlugin,
+	editor: Editor,
+	line: string,
+	cursor: { line: number; ch: number },
+	onlineMatch: RegExpMatchArray
+) {
+	try {
+		const base64File = await fetchOnlineImage(imageUrl);
+		const activeFile = plugin.app.workspace.getActiveFile();
+
+		const { processedFile, shouldSaveAsAttachment } = await handleImageResizing(
+			base64File,
+			plugin,
+			activeFile
+		);
+
+		if (shouldSaveAsAttachment && activeFile) {
+			const file = new File(
+				[base64File.buffer],
+				base64File.filename,
+				{ type: "image/png" }
+			);
+			const targetPath =
+				await plugin.app.fileManager.getAvailablePathForAttachment(
+					base64File.filename,
+					activeFile.path
+				);
+
+			const newFile = (await plugin.app.vault.createBinary(
+				targetPath,
+				await file.arrayBuffer()
+			)) as TFile;
+
+			const link = plugin.app.fileManager.generateMarkdownLink(
+				newFile,
+				activeFile.path
+			);
+
+			// Replace the online image with the local link
+			const newLine = line.replace(onlineMatch[0], link);
+			const lineStart = editor.posToOffset({
+				line: cursor.line,
+				ch: 0,
+			});
+			const lineEnd = editor.posToOffset({
+				line: cursor.line,
+				ch: line.length,
+			});
+
+			editor.replaceRange(
+				newLine,
+				editor.offsetToPos(lineStart),
+				editor.offsetToPos(lineEnd)
+			);
+
+			new Notice("Image saved as attachment due to size");
+			return;
+		}
+
+		// Convert to base64 and replace the online image
+		const newLine = line.replace(onlineMatch[0], processedFile.to64Link());
+		const lineStart = editor.posToOffset({
+			line: cursor.line,
+			ch: 0,
+		});
+		const lineEnd = editor.posToOffset({
+			line: cursor.line,
+			ch: line.length,
+		});
+
+		editor.replaceRange(
+			newLine,
+			editor.offsetToPos(lineStart),
+			editor.offsetToPos(lineEnd)
+		);
+
+		new Notice("Online image converted to base64");
+	} catch (error) {
+		if (error instanceof Error) {
+			new Notice(error.message);
+		} else {
+			new Notice("Failed to convert online image: Unknown error");
+		}
+	}
+}
+
 export async function registerConvertImage(plugin: ImageInlinePlugin) {
 	plugin.registerEvent(
 		plugin.app.workspace.on("editor-menu", async (menu, editor) => {
@@ -123,7 +269,6 @@ export async function registerConvertImage(plugin: ImageInlinePlugin) {
 			const onlineImageRegex = /!\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/;
 
 			const localMatch = line.match(localImageRegex);
-
 			const onlineMatch = line.match(onlineImageRegex);
 
 			if (localMatch) {
@@ -156,162 +301,14 @@ export async function registerConvertImage(plugin: ImageInlinePlugin) {
 					item.setTitle("Convert online image to base64")
 						.setIcon("code-glyph")
 						.onClick(async () => {
-							try {
-								const base64File = await fetchOnlineImage(
-									imageUrl
-								);
-
-								// Apply the same resizing policy as in main.ts
-								const sizeInKB = base64File.size / 1024;
-								let processedFile = base64File;
-
-								if (plugin.settings.enableResizing) {
-									if (
-										plugin.settings.resizeStrategy ===
-										"smaller"
-									) {
-										if (
-											sizeInKB >
-											plugin.settings.smallerThreshold
-										) {
-											// Save as attachment instead
-											const activeFile =
-												plugin.app.workspace.getActiveFile();
-											if (activeFile) {
-												const file = new File(
-													[base64File.buffer],
-													base64File.filename,
-													{ type: "image/png" }
-												);
-												const targetPath =
-													await plugin.app.fileManager.getAvailablePathForAttachment(
-														base64File.filename,
-														activeFile.path
-													);
-
-												const newFile =
-													(await plugin.app.vault.createBinary(
-														targetPath,
-														await file.arrayBuffer()
-													)) as TFile;
-
-												const link =
-													plugin.app.fileManager.generateMarkdownLink(
-														newFile,
-														activeFile.path
-													);
-
-												// Replace the online image with the local link
-												const newLine = line.replace(
-													onlineMatch[0],
-													link
-												);
-												const lineStart =
-													editor.posToOffset({
-														line: cursor.line,
-														ch: 0,
-													});
-												const lineEnd =
-													editor.posToOffset({
-														line: cursor.line,
-														ch: line.length,
-													});
-
-												editor.replaceRange(
-													newLine,
-													editor.offsetToPos(
-														lineStart
-													),
-													editor.offsetToPos(lineEnd)
-												);
-
-												new Notice(
-													"Image saved as attachment due to size"
-												);
-												return;
-											}
-										}
-									} else {
-										// Larger strategy
-										if (
-											sizeInKB >
-												plugin.settings
-													.largerThreshold ||
-											plugin.settings.resizeSmallerFiles
-										) {
-											processedFile =
-												await plugin.conversion.resize(
-													base64File,
-													plugin.settings
-														.resizePercentage
-												);
-
-											if (
-												plugin.settings
-													.backupOriginalImage
-											) {
-												const activeFile =
-													plugin.app.workspace.getActiveFile();
-												if (activeFile) {
-													const timestamp = new Date()
-														.toISOString()
-														.replace(/[:.]/g, "-");
-													const backupFilename = `${base64File.filename.replace(
-														".png",
-														""
-													)}_original_${timestamp}.png`;
-
-													const targetPath =
-														await plugin.app.fileManager.getAvailablePathForAttachment(
-															backupFilename,
-															activeFile.path
-														);
-
-													const file = new File(
-														[base64File.buffer],
-														backupFilename,
-														{ type: "image/png" }
-													);
-													await plugin.app.vault.createBinary(
-														targetPath,
-														await file.arrayBuffer()
-													);
-												}
-											}
-										}
-									}
-								}
-
-								// Convert to base64 and replace the online image
-								const newLine = line.replace(
-									onlineMatch[0],
-									processedFile.to64Link()
-								);
-								const lineStart = editor.posToOffset({
-									line: cursor.line,
-									ch: 0,
-								});
-								const lineEnd = editor.posToOffset({
-									line: cursor.line,
-									ch: line.length,
-								});
-
-								editor.replaceRange(
-									newLine,
-									editor.offsetToPos(lineStart),
-									editor.offsetToPos(lineEnd)
-								);
-
-								new Notice("Online image converted to base64");
-							} catch (error) {
-								if (error instanceof Error) {
-									new Notice(error.message);
-								} else {
-									new Notice(
-										"Failed to convert online image: Unknown error"
-									);
-								}
-							}
+							await convertOnlineImageToBase64(
+								imageUrl,
+								plugin,
+								editor,
+								line,
+								cursor,
+								onlineMatch
+							);
 						});
 				});
 			}
