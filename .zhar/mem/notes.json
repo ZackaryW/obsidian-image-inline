@@ -16,5 +16,23 @@
       "target_ids": "08dce"
     },
     "custom": {}
+  },
+  "0cdfb": {
+    "id": "0cdfb",
+    "group": "notes",
+    "node_type": "note",
+    "summary": "Shifted README copy toward end-user benefits, everyday workflows, and simple feature descriptions while keeping the documented behavior accurate.",
+    "status": "active",
+    "tags": [],
+    "source": null,
+    "content": "Shifted README copy toward end-user benefits, everyday workflows, and simple feature descriptions while keeping the documented behavior accurate.",
+    "created_at": "2026-05-01T01:05:04Z",
+    "updated_at": "2026-05-01T01:05:04Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "copilot",
+      "target_ids": "0b19d"
+    },
+    "custom": {}
   }
 }

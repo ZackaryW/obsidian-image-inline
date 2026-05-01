@@ -2,108 +2,81 @@
 
 # Image Inline
 
-Image Inline is an Obsidian plugin for keeping images inside your notes as inline data URLs instead of always creating attachment files.
+Image Inline is for Obsidian users who want images to stay with the note instead of turning every paste into another attachment file.
 
-It is useful for vaults where you want self-contained notes, fewer attachment folders, or a faster way to paste screenshots directly into Markdown.
+Some vaults just work better that way. If you mostly paste screenshots, sketches, or quick reference images and want the note to remain self-contained, this plugin is built for that workflow.
 
+## Why people use it
 
-## What it does
+- Paste an image and keep writing.
+- Drop an image into a note without managing a separate file.
+- Avoid clutter from attachment folders when the image only matters inside one note.
+- Keep long inline image content from taking over the editor view.
 
-- Converts pasted images into inline Markdown image data URLs.
-- Converts dropped images into inline Markdown image data URLs.
-- Prevents large inline base64 strings from expanding noisily in the editor.
-- Helps move the cursor out of inline data sections while editing.
-- Supports optional resize and threshold-based attachment workflows.
-- Adds context-menu actions for converting and exporting images.
-- Adds batch commands for converting or exporting images across a note, folder, or entire vault.
+## What it helps with
 
-## Current feature set
+### Everyday use
 
-### Paste and drop
+- Paste images directly into a note.
+- Drag and drop images into a note.
+- Keep inline image text visually collapsed so the note stays readable.
+- Jump the cursor out of the image data section more easily while editing.
 
-- `Convert on paste` can automatically inline pasted images.
-- `Convert on drop` can automatically inline dropped image files.
-- Mixed clipboard or drag content is left to Obsidian's normal handling.
+### When you want more control
 
-### Editor behavior
+- Convert a local image embed into an inline image.
+- Convert an online image link into an inline image.
+- Export an inline image back to your vault as a normal file.
+- Batch-convert images in the current note, current folder, or entire vault.
+- Batch-export images in the current note, current folder, or entire vault.
 
-- Inline image data URLs are visually collapsed in the editor so long base64 payloads do not flood the visible document.
-- The cursor escape behavior helps move the caret out of inline image data sections during editing.
+## Flexible image handling
 
-### Context menu actions
+If you want a simple setup, you can just inline pasted and dropped images.
 
-When the cursor is on a supported image line, the editor context menu can add:
+If you want more control, the plugin also supports resize and threshold rules:
 
-- `Convert to Base64` for local `![[image.png]]` style embeds.
-- `Convert online image to base64` for remote `![alt](https://...)` image links.
-- `Export to Vault` for inline base64 image links.
+- Keep smaller images inline and save larger ones as attachments.
+- Resize larger images before inlining them.
+- Optionally keep a backup of the original image.
 
-### Command palette actions
+## In Obsidian
 
-- `Convert Images`
-	Converts linked image embeds to inline base64, or converts inline base64 images back into attachment files.
-- `Export Images`
-	Exports inline base64 images and linked image embeds into vault attachments.
+The plugin adds support in three places:
 
-Both commands support these scopes:
-
-- Current note
-- Current folder
-- Entire vault
-
-## Image handling modes
-
-Image Inline supports two configurable behaviors when resizing is enabled.
-
-### Smaller strategy
-
-- Images smaller than the configured threshold are inlined as base64.
-- Images larger than the configured threshold are saved as attachments instead.
-
-### Larger strategy
-
-- Images larger than the configured threshold are resized before being inlined.
-- Original images can optionally be backed up to the vault.
-- Smaller files can optionally be resized as well.
-
-If resizing is disabled, pasted and dropped images are inlined directly.
+- Editor paste and drop behavior
+- Editor context menu actions
+- Command palette actions for larger cleanup or conversion jobs
 
 ## Settings
 
-The plugin currently exposes these settings in Obsidian:
+You can turn on or off:
 
-- `Convert on paste`
-- `Convert on drop`
-- `Auto escape base64 data section`
-- `Enable resizing`
-- `Resizing strategy`
-- `Size threshold`
-- `Resize percentage`
-- `Backup original images`
-- `Resize smaller files`
+- Convert on paste
+- Convert on drop
+- Auto escape from inline image data
+- Resize behavior
+- Size thresholds
+- Resize percentage
+- Original image backup behavior
 
-## Notes and limits
+## Good fit for
 
-- The batch convert and export flows currently target common image embed patterns used in this plugin, especially linked `png`, `jpg`, and `jpeg` note embeds.
-- User-facing notices stay concise, while more detailed operational traces are available in the Obsidian developer console for debugging.
-- The plugin is marked as not desktop-only in the manifest.
+- Personal knowledge bases that favor self-contained notes
+- Screenshot-heavy workflows
+- Travel, research, or archive vaults where portability matters
+- People who dislike attachment folder sprawl
+
+## Notes
+
+- Image Inline currently focuses on the common note image workflows used in this plugin.
+- Some actions are designed around common `png`, `jpg`, and `jpeg` image embeds.
+- The plugin works on mobile as well as desktop.
 
 ## Development
 
-### Scripts
+For local development:
 
 - `npm run build`
-	Type-checks the plugin and builds the production bundle.
 - `npm run test:utils`
-	Runs the current Node-based test suite.
-
-### Local development notes
-
-- Entry point: `src/main.ts`
-- Manifest: `manifest.json`
-- Batch commands: `src/commands/`
-- Editor/context integrations: `src/coms/` and `src/comsContext/`
-- Shared conversion utilities: `src/utils/`
-
-This repo uses focused utility and editor-helper tests with `node:test` and `tsx`.
 
