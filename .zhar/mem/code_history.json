@@ -1,0 +1,21 @@
+{
+  "08dce": {
+    "id": "08dce",
+    "group": "code_history",
+    "node_type": "file_change",
+    "summary": "README now reflects the current plugin feature set, settings, and command surfaces.",
+    "status": "active",
+    "tags": [],
+    "source": null,
+    "content": null,
+    "created_at": "2026-05-01T00:50:34Z",
+    "updated_at": "2026-05-01T00:50:34Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "zhar-agent",
+      "path": "README.md",
+      "significance": "patch"
+    },
+    "custom": {}
+  }
+}

@@ -342,53 +342,86 @@ function createImageFile(file, filename = file.filename) {
 
 // src/coms/antiLinkExpand.ts
 var import_view = require("@codemirror/view");
-var ImageWidget = class extends import_view.WidgetType {
-  constructor(imageName) {
-    super();
-    this.imageName = imageName;
+var INLINE_IMAGE_DATA_URL_REGEX = /data:image\/[^;]+;base64,[^)]+/g;
+function findInlineImageDataUrlRanges(text, offset = 0) {
+  const ranges = [];
+  const regex = new RegExp(INLINE_IMAGE_DATA_URL_REGEX);
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    ranges.push({
+      from: offset + match.index,
+      to: offset + match.index + match[0].length
+    });
   }
+  return ranges;
+}
+function buildVisibleInlineImageDecorations(view) {
+  const decorations = [];
+  for (const visibleRange of view.visibleRanges) {
+    const text = view.state.doc.sliceString(visibleRange.from, visibleRange.to);
+    const matches = findInlineImageDataUrlRanges(text, visibleRange.from);
+    for (const match of matches) {
+      decorations.push(import_view.Decoration.replace({
+        widget: new InlineImageDataUrlWidget(),
+        inclusive: true
+      }).range(match.from, match.to));
+    }
+  }
+  return import_view.Decoration.set(decorations, true);
+}
+var InlineImageDataUrlWidget = class extends import_view.WidgetType {
+  /**
+   * Creates the compact inline replacement widget used in the editor.
+   */
+  constructor() {
+    super();
+  }
+  /**
+   * Builds the DOM element that visually replaces the inline data URL text.
+   */
   toDOM() {
     const span = document.createElement("span");
-    span.textContent = `...`;
+    span.textContent = "...";
     return span;
   }
 };
-var linkDecorations = import_view.ViewPlugin.fromClass(class {
+var InlineImageDecorationPlugin = class {
+  /**
+   * Creates the initial decoration set for the active editor viewport.
+   */
   constructor(view) {
-    this.decorations = this.buildDecorations(view);
+    this.decorations = buildVisibleInlineImageDecorations(view);
   }
+  /**
+   * Refreshes decorations when edits or viewport changes affect visible inline data URLs.
+   */
   update(update) {
     if (update.docChanged || update.viewportChanged) {
-      this.decorations = this.buildDecorations(update.view);
+      this.decorations = buildVisibleInlineImageDecorations(update.view);
     }
   }
-  buildDecorations(view) {
-    const decorations = [];
-    const text = view.state.doc.toString();
-    const regex = /data:image\/[^;]+;base64,[^)]+/g;
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      const start = match.index;
-      const end = start + match[0].length;
-      decorations.push(import_view.Decoration.replace({
-        widget: new ImageWidget(match[0]),
-        inclusive: true
-      }).range(start, end));
-    }
-    return import_view.Decoration.set(decorations, true);
-  }
-}, {
-  decorations: (v) => v.decorations
+};
+var linkDecorations = import_view.ViewPlugin.fromClass(InlineImageDecorationPlugin, {
+  decorations: (plugin) => plugin.decorations
 });
 
 // src/comsContext/export.ts
 var import_obsidian = require("obsidian");
+function toArrayBuffer(buffer) {
+  return Uint8Array.from(buffer).buffer;
+}
 var ExportToVaultModal = class extends import_obsidian.Modal {
+  /**
+   * Stores the initial filename and binary image contents for the export dialog.
+   */
   constructor(app, filename, buffer) {
     super(app);
     this.filename = filename;
     this.buffer = buffer;
   }
+  /**
+   * Builds the export form and saves the image into the current note's attachment location.
+   */
   onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Export to Vault" });
@@ -422,6 +455,9 @@ var ExportToVaultModal = class extends import_obsidian.Modal {
       this.close();
     });
   }
+  /**
+   * Clears the modal contents after the export dialog closes.
+   */
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
@@ -441,7 +477,7 @@ async function registerExportToLocal(plugin) {
             if (!base64Match) return;
             const base64Data = base64Match[1];
             const buffer = Buffer.from(base64Data, "base64");
-            new ExportToVaultModal(plugin.app, "image.png", buffer).open();
+            new ExportToVaultModal(plugin.app, "image.png", toArrayBuffer(buffer)).open();
           });
         });
       }
@@ -678,6 +714,28 @@ async function registerConvertImage(plugin) {
 
 // src/commands/selectAndConvert.ts
 var import_obsidian3 = require("obsidian");
+var CONVERT_DEBUG_PREFIX = "[image-inline:convert-images]";
+function logConvertDebug(message, details) {
+  if (details === void 0) {
+    console.debug(CONVERT_DEBUG_PREFIX, message);
+    return;
+  }
+  console.debug(CONVERT_DEBUG_PREFIX, message, details);
+}
+function logConvertWarning(message, details) {
+  if (details === void 0) {
+    console.warn(CONVERT_DEBUG_PREFIX, message);
+    return;
+  }
+  console.warn(CONVERT_DEBUG_PREFIX, message, details);
+}
+function logConvertError(message, details) {
+  if (details === void 0) {
+    console.error(CONVERT_DEBUG_PREFIX, message);
+    return;
+  }
+  console.error(CONVERT_DEBUG_PREFIX, message, details);
+}
 var ConvertImagesModal = class extends import_obsidian3.Modal {
   /**
    * Stores the plugin reference and default conversion options for the modal session.
@@ -739,29 +797,31 @@ var ConvertImagesModal = class extends import_obsidian3.Modal {
    */
   async performConversion() {
     const files = await this.getFilesInScope();
-    console.log("Files in scope:", files.length);
     let converted = 0;
+    logConvertDebug("Starting batch conversion", {
+      scope: this.conversionScope,
+      conversionType: this.conversionType,
+      fileCount: files.length
+    });
     for (const file of files) {
       if (this.conversionType === "toBase64") {
-        const content = await this.app.vault.read(file);
-        const imageRegex = /!\[\[([^\]]+\.(png|jpg|jpeg))\]\]/g;
-        const matches = content.match(imageRegex);
-        if (matches) {
-          console.log("Found image embeds in:", file.path);
-          await this.convertToBase64(file);
+        const modified = await this.convertToBase64(file);
+        if (modified) {
           converted++;
         }
       } else {
-        const content = await this.app.vault.read(file);
-        const base64Regex = /!\[.*?\]\(data:image\/[^;]+;base64,[^)]+\)/g;
-        const matches = content.match(base64Regex);
-        if (matches) {
-          console.log("Found base64 images in:", file.path);
-          await this.convertToImages(file, matches);
+        const modified = await this.convertToImages(file);
+        if (modified) {
           converted++;
         }
       }
     }
+    logConvertDebug("Completed batch conversion", {
+      scope: this.conversionScope,
+      conversionType: this.conversionType,
+      converted,
+      totalFiles: files.length
+    });
     new import_obsidian3.Notice(`Converted ${converted} files`);
   }
   /**
@@ -771,10 +831,17 @@ var ConvertImagesModal = class extends import_obsidian3.Modal {
     switch (this.conversionScope) {
       case "note":
         const activeFile = this.app.workspace.getActiveFile();
-        return activeFile ? [activeFile] : [];
+        if (!activeFile) {
+          logConvertWarning("No active file was available for note-scoped conversion");
+          return [];
+        }
+        return [activeFile];
       case "folder":
         const currentFile = this.app.workspace.getActiveFile();
-        if (!(currentFile == null ? void 0 : currentFile.parent)) return [];
+        if (!(currentFile == null ? void 0 : currentFile.parent)) {
+          logConvertWarning("No active folder was available for folder-scoped conversion");
+          return [];
+        }
         return this.app.vault.getMarkdownFiles().filter((f) => f.parent === currentFile.parent);
       case "vault":
         return this.app.vault.getMarkdownFiles();
@@ -783,56 +850,154 @@ var ConvertImagesModal = class extends import_obsidian3.Modal {
     }
   }
   /**
+   * Returns the active editor when the target file is currently open, otherwise null.
+   */
+  getActiveEditorForFile(file) {
+    var _a, _b;
+    const activeFile = this.app.workspace.getActiveFile();
+    const activeEditor = (_b = (_a = this.app.workspace.activeEditor) == null ? void 0 : _a.editor) != null ? _b : null;
+    if (!activeFile || activeFile.path !== file.path || !activeEditor) {
+      return null;
+    }
+    return activeEditor;
+  }
+  /**
+   * Updates a markdown file atomically in the vault or through the active editor when it is open.
+   */
+  async updateMarkdownFile(file, updater) {
+    const activeEditor = this.getActiveEditorForFile(file);
+    if (activeEditor) {
+      const currentContent = activeEditor.getValue();
+      const updatedContent = updater(currentContent);
+      if (updatedContent === currentContent) {
+        logConvertDebug("Skipped editor update because content did not change", {
+          file: file.path
+        });
+        return false;
+      }
+      activeEditor.setValue(updatedContent);
+      logConvertDebug("Updated open note through active editor", {
+        file: file.path
+      });
+      return true;
+    }
+    let modified = false;
+    await this.app.vault.process(file, (content) => {
+      const updatedContent = updater(content);
+      modified = updatedContent !== content;
+      return updatedContent;
+    });
+    if (modified) {
+      logConvertDebug("Updated closed note through vault.process", {
+        file: file.path
+      });
+    } else {
+      logConvertDebug("Skipped vault.process update because content did not change", {
+        file: file.path
+      });
+    }
+    return modified;
+  }
+  /**
+   * Applies exact-string replacements to markdown content in a deterministic sequence.
+   */
+  applyReplacements(content, replacements) {
+    let updatedContent = content;
+    for (const replacement of replacements) {
+      updatedContent = updatedContent.replace(replacement.from, replacement.to);
+    }
+    return updatedContent;
+  }
+  /**
    * Rewrites local image embeds in a note into MIME-aware inline data URLs.
    */
   async convertToBase64(file) {
     const content = await this.app.vault.read(file);
     const imageRegex = /!\[\[([^\]]+\.(png|jpg|jpeg))\]\]/g;
-    let newContent = content;
-    let modified = false;
-    const matches = Array.from(content.matchAll(imageRegex));
-    for (const match of matches) {
+    const replacements = [];
+    let match;
+    while ((match = imageRegex.exec(content)) !== null) {
       const imagePath = match[1];
       const imageFile = this.app.metadataCache.getFirstLinkpathDest(imagePath, file.path);
-      if (imageFile instanceof import_obsidian3.TFile) {
-        try {
-          const markdown = `![[${imageFile.name}]]`;
-          const newMarkdown = (await Base64File.fromTFile(imageFile)).to64Link();
-          newContent = newContent.replace(markdown, newMarkdown);
-          modified = true;
-        } catch (e) {
-          continue;
-        }
+      if (!(imageFile instanceof import_obsidian3.TFile)) {
+        logConvertWarning("Skipped image embed because the linked file could not be resolved", {
+          note: file.path,
+          imagePath
+        });
+        continue;
+      }
+      try {
+        replacements.push({
+          from: match[0],
+          to: (await Base64File.fromTFile(imageFile)).to64Link()
+        });
+      } catch (error) {
+        logConvertError("Failed to convert image embed to base64", {
+          note: file.path,
+          imagePath: imageFile.path,
+          error
+        });
+        continue;
       }
     }
-    if (modified) {
-      await this.app.vault.modify(file, newContent);
-    }
+    logConvertDebug("Prepared base64 replacements", {
+      file: file.path,
+      replacements: replacements.length
+    });
+    return this.updateMarkdownFile(file, (currentContent) => {
+      return this.applyReplacements(currentContent, replacements);
+    });
   }
   /**
    * Writes inline data URLs back to vault attachments while preserving their image metadata.
    */
-  async convertToImages(file, matches) {
+  async convertToImages(file) {
     const content = await this.app.vault.read(file);
-    let newContent = content;
-    for (const match of matches) {
-      const base64File = Base64File.from64Link(match);
-      if (!base64File) continue;
-      const targetPath = await this.app.fileManager.getAvailablePathForAttachment(
-        base64File.filename,
-        file.path
-      );
-      const imageFile = createImageFile(base64File);
-      await this.app.vault.createBinary(targetPath, await imageFile.arrayBuffer());
-      const newFile = this.app.vault.getAbstractFileByPath(targetPath);
-      if (newFile instanceof import_obsidian3.TFile) {
-        const link = this.app.fileManager.generateMarkdownLink(newFile, file.path);
-        newContent = newContent.replace(match, link);
+    const base64Regex = /!\[.*?\]\(data:image\/[^;]+;base64,[^)]+\)/g;
+    const replacements = [];
+    let match;
+    while ((match = base64Regex.exec(content)) !== null) {
+      const base64File = Base64File.from64Link(match[0]);
+      if (!base64File) {
+        logConvertWarning("Skipped inline image because the data URL could not be parsed", {
+          note: file.path
+        });
+        continue;
+      }
+      try {
+        const targetPath = await this.app.fileManager.getAvailablePathForAttachment(
+          base64File.filename,
+          file.path
+        );
+        const imageFile = createImageFile(base64File);
+        await this.app.vault.createBinary(targetPath, await imageFile.arrayBuffer());
+        const newFile = this.app.vault.getAbstractFileByPath(targetPath);
+        if (newFile instanceof import_obsidian3.TFile) {
+          replacements.push({
+            from: match[0],
+            to: this.app.fileManager.generateMarkdownLink(newFile, file.path)
+          });
+          continue;
+        }
+        logConvertWarning("Created an attachment but could not resolve it back from the vault", {
+          note: file.path,
+          targetPath
+        });
+      } catch (error) {
+        logConvertError("Failed to materialize inline image as an attachment", {
+          note: file.path,
+          filename: base64File.filename,
+          error
+        });
       }
     }
-    if (newContent !== content) {
-      await this.app.vault.modify(file, newContent);
-    }
+    logConvertDebug("Prepared attachment replacements", {
+      file: file.path,
+      replacements: replacements.length
+    });
+    return this.updateMarkdownFile(file, (currentContent) => {
+      return this.applyReplacements(currentContent, replacements);
+    });
   }
   /**
    * Clears modal contents after the batch conversion dialog closes.
@@ -854,12 +1019,40 @@ function registerConvertCommand(plugin) {
 
 // src/commands/selectAndExport.ts
 var import_obsidian4 = require("obsidian");
+var EXPORT_DEBUG_PREFIX = "[image-inline:export-images]";
+function logExportDebug(message, details) {
+  if (details === void 0) {
+    console.debug(EXPORT_DEBUG_PREFIX, message);
+    return;
+  }
+  console.debug(EXPORT_DEBUG_PREFIX, message, details);
+}
+function logExportWarning(message, details) {
+  if (details === void 0) {
+    console.warn(EXPORT_DEBUG_PREFIX, message);
+    return;
+  }
+  console.warn(EXPORT_DEBUG_PREFIX, message, details);
+}
+function logExportError(message, details) {
+  if (details === void 0) {
+    console.error(EXPORT_DEBUG_PREFIX, message);
+    return;
+  }
+  console.error(EXPORT_DEBUG_PREFIX, message, details);
+}
 var ExportImagesModal = class extends import_obsidian4.Modal {
+  /**
+   * Stores the plugin reference and default export scope for the modal session.
+   */
   constructor(app, plugin) {
     super(app);
     this.plugin = plugin;
     this.conversionScope = "note";
   }
+  /**
+   * Builds the modal UI for choosing which notes should be exported.
+   */
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
@@ -889,20 +1082,26 @@ var ExportImagesModal = class extends import_obsidian4.Modal {
       this.close();
     });
   }
+  /**
+   * Exports inline and linked images from the selected note scope into attachments.
+   */
   async exportImages() {
     const files = await this.getFilesInScope();
-    console.log("Files in scope:", files.length);
     let exportedCount = 0;
     let skippedCount = 0;
+    logExportDebug("Starting image export", {
+      scope: this.conversionScope,
+      fileCount: files.length
+    });
     for (const file of files) {
       const content = await this.app.vault.read(file);
       const base64Regex = /!\[.*?\]\(data:image\/[^;]+;base64,([^)]+)\)/g;
-      const base64Matches = Array.from(content.matchAll(base64Regex));
       const imageRegex = /!\[\[([^\]]+\.(png|jpg|jpeg))\]\]/g;
-      const imageMatches = Array.from(content.matchAll(imageRegex));
-      for (const match of base64Matches) {
+      let base64Match;
+      let imageMatch;
+      while ((base64Match = base64Regex.exec(content)) !== null) {
         try {
-          const base64Data = match[1];
+          const base64Data = base64Match[1];
           const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
           const filename = `base64_image_${timestamp}_${exportedCount}.png`;
           const binary = atob(base64Data);
@@ -919,18 +1118,29 @@ var ExportImagesModal = class extends import_obsidian4.Modal {
             const existingSize = (await this.app.vault.readBinary(existingFile)).byteLength;
             if (existingSize === array.buffer.byteLength) {
               skippedCount++;
+              logExportDebug("Skipped exporting base64 image because a matching attachment already exists", {
+                note: file.path,
+                targetPath
+              });
               continue;
             }
           }
           await this.app.vault.createBinary(targetPath, array.buffer);
           exportedCount++;
+          logExportDebug("Exported inline base64 image to attachment", {
+            note: file.path,
+            targetPath
+          });
         } catch (error) {
-          console.error("Error processing base64 image:", error);
+          logExportError("Failed to export inline base64 image", {
+            note: file.path,
+            error
+          });
         }
       }
-      for (const match of imageMatches) {
+      while ((imageMatch = imageRegex.exec(content)) !== null) {
         try {
-          const imagePath = match[1];
+          const imagePath = imageMatch[1];
           const imageFile = this.app.metadataCache.getFirstLinkpathDest(imagePath, file.path);
           if (imageFile instanceof import_obsidian4.TFile) {
             const arrayBuffer = await this.app.vault.readBinary(imageFile);
@@ -943,31 +1153,65 @@ var ExportImagesModal = class extends import_obsidian4.Modal {
               const existingSize = (await this.app.vault.readBinary(existingFile)).byteLength;
               if (existingSize === arrayBuffer.byteLength) {
                 skippedCount++;
+                logExportDebug("Skipped exporting linked image because a matching attachment already exists", {
+                  note: file.path,
+                  sourceImage: imageFile.path,
+                  targetPath
+                });
                 continue;
               }
             }
             await this.app.vault.createBinary(targetPath, arrayBuffer);
             exportedCount++;
+            logExportDebug("Exported linked image to attachment", {
+              note: file.path,
+              sourceImage: imageFile.path,
+              targetPath
+            });
+          } else {
+            logExportWarning("Skipped linked image export because the embed target could not be resolved", {
+              note: file.path,
+              imagePath
+            });
           }
         } catch (error) {
-          console.error("Error processing image embed:", error);
+          logExportError("Failed to export linked image embed", {
+            note: file.path,
+            error
+          });
         }
       }
     }
+    logExportDebug("Completed image export", {
+      scope: this.conversionScope,
+      exportedCount,
+      skippedCount,
+      totalFiles: files.length
+    });
     if (exportedCount > 0 || skippedCount > 0) {
       new import_obsidian4.Notice(`Exported ${exportedCount} images, skipped ${skippedCount} duplicates`);
     } else {
       new import_obsidian4.Notice("No images found to export");
     }
   }
+  /**
+   * Collects markdown files for the currently selected export scope.
+   */
   async getFilesInScope() {
     switch (this.conversionScope) {
       case "note":
         const activeFile = this.app.workspace.getActiveFile();
-        return activeFile ? [activeFile] : [];
+        if (!activeFile) {
+          logExportWarning("No active file was available for note-scoped export");
+          return [];
+        }
+        return [activeFile];
       case "folder":
         const currentFile = this.app.workspace.getActiveFile();
-        if (!(currentFile == null ? void 0 : currentFile.parent)) return [];
+        if (!(currentFile == null ? void 0 : currentFile.parent)) {
+          logExportWarning("No active folder was available for folder-scoped export");
+          return [];
+        }
         return this.app.vault.getMarkdownFiles().filter((f) => f.parent === currentFile.parent);
       case "vault":
         return this.app.vault.getMarkdownFiles();
@@ -975,6 +1219,9 @@ var ExportImagesModal = class extends import_obsidian4.Modal {
         return [];
     }
   }
+  /**
+   * Clears modal contents after the export dialog closes.
+   */
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
@@ -992,21 +1239,62 @@ function registerExportCommand(plugin) {
 
 // src/coms/cursorEscape.ts
 var import_obsidian5 = require("obsidian");
+
+// src/coms/cursorEscapeHelpers.ts
+function findInlineImageLinkBounds(line) {
+  if (!(line.startsWith("![[") || line.startsWith("![")) && !line.includes("(data:image/")) {
+    return null;
+  }
+  if (!line.includes("(data:image/")) {
+    return null;
+  }
+  const linkStart = line.indexOf("(data:image/");
+  if (linkStart === -1) {
+    return null;
+  }
+  let openParens = 1;
+  for (let index = linkStart + 1; index < line.length; index++) {
+    if (line[index] === "(") {
+      openParens++;
+    }
+    if (line[index] === ")") {
+      openParens--;
+    }
+    if (openParens === 0) {
+      return { start: linkStart, end: index };
+    }
+  }
+  return null;
+}
+function getEscapedCursorCh(line, cursorCh) {
+  const bounds = findInlineImageLinkBounds(line);
+  if (!bounds) {
+    return null;
+  }
+  if (cursorCh <= bounds.start || cursorCh > bounds.end) {
+    return null;
+  }
+  return bounds.end + 1;
+}
+
+// src/coms/cursorEscape.ts
 function registerCursorEscape(plugin) {
-  plugin.registerInterval(
-    window.setInterval(() => {
-      if (!plugin.settings.autoEscapeLink) {
-        return;
-      }
-      const activeView = plugin.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
-      if (activeView && activeView.getViewType() === "markdown") {
-        const editor = activeView.editor;
-        if (editor) {
-          checkCursorPosition(editor);
-        }
-      }
-    }, 100)
-  );
+  const syncCursorEscape = () => {
+    if (!plugin.settings.autoEscapeLink) {
+      return;
+    }
+    const activeView = plugin.app.workspace.getActiveViewOfType(import_obsidian5.MarkdownView);
+    if (!activeView || activeView.getViewType() !== "markdown") {
+      return;
+    }
+    checkCursorPosition(activeView.editor);
+  };
+  plugin.registerDomEvent(document, "selectionchange", () => {
+    syncCursorEscape();
+  });
+  plugin.registerEvent(plugin.app.workspace.on("editor-change", () => {
+    syncCursorEscape();
+  }));
 }
 function checkCursorPosition(editor) {
   const cursor = editor.getCursor();
@@ -1015,36 +1303,14 @@ function checkCursorPosition(editor) {
     return;
   }
   const line = editor.getLine(cursor.line);
-  if (!(line.startsWith("![") && line.includes("(data:image/"))) {
+  const escapedCursorCh = getEscapedCursorCh(line, cursor.ch);
+  if (escapedCursorCh === null) {
     return;
   }
-  const linkStart = line.indexOf("(data:image/");
-  if (linkStart === -1) {
-    return;
-  }
-  let openParens = 1;
-  let linkEnd = linkStart;
-  for (let i = linkStart + 1; i < line.length; i++) {
-    if (line[i] === "(") openParens++;
-    if (line[i] === ")") openParens--;
-    if (openParens === 0) {
-      linkEnd = i;
-      break;
-    }
-  }
-  if (cursor.ch <= linkStart || cursor.ch > linkEnd) {
-    return;
-  }
-  const remainingText = line.slice(cursor.ch);
-  const nextClosingParen = remainingText.indexOf(")");
-  if (nextClosingParen !== -1) {
-    editor.setCursor({
-      line: cursor.line,
-      ch: cursor.ch + nextClosingParen + 1
-    });
-  } else {
-    editor.setCursor({ line: cursor.line + 1, ch: 0 });
-  }
+  editor.setCursor({
+    line: cursor.line,
+    ch: escapedCursorCh
+  });
 }
 
 // src/main.ts

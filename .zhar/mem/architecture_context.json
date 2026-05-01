@@ -38,5 +38,65 @@
       "agent": "zhar-agent"
     },
     "custom": {}
+  },
+  "0521a": {
+    "id": "0521a",
+    "group": "architecture_context",
+    "node_type": "design_pattern",
+    "summary": "Inline data URL handling is viewport-scoped and event-driven.",
+    "status": "active",
+    "tags": [
+      "obsidian-plugin",
+      "image-inline"
+    ],
+    "source": null,
+    "content": "Editor performance pattern:\n- antiLinkExpand now scans only EditorView.visibleRanges and builds decorations from viewport slices instead of serializing the full document on every update.\n- cursorEscape now reacts to editor-change and selectionchange events instead of polling on an interval.\n- Pure helper functions under src/coms support focused tests for data URL range detection and cursor escape behavior.",
+    "created_at": "2026-05-01T00:15:15Z",
+    "updated_at": "2026-05-01T00:15:15Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "zhar-agent"
+    },
+    "custom": {}
+  },
+  "06ed6": {
+    "id": "06ed6",
+    "group": "architecture_context",
+    "node_type": "design_pattern",
+    "summary": "Batch conversion rewrites are editor-aware and atomically applied.",
+    "status": "active",
+    "tags": [
+      "obsidian-plugin",
+      "image-inline"
+    ],
+    "source": null,
+    "content": "Batch conversion write pattern:\n- selectAndConvert now updates open notes through the active editor so editor state stays in sync.\n- Background note rewrites use vault.process with synchronous replacement application instead of direct vault.modify writes.\n- Async conversion work is precomputed as replacement lists before the atomic file transform runs.",
+    "created_at": "2026-05-01T00:18:27Z",
+    "updated_at": "2026-05-01T00:18:27Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "zhar-agent"
+    },
+    "custom": {}
+  },
+  "0776b": {
+    "id": "0776b",
+    "group": "architecture_context",
+    "node_type": "design_pattern",
+    "summary": "Batch command debug logging uses scoped console prefixes and structured payloads.",
+    "status": "active",
+    "tags": [
+      "obsidian-plugin",
+      "image-inline"
+    ],
+    "source": null,
+    "content": "Batch command debug logging pattern:\n- Batch command modals log with command-specific console prefixes so Obsidian devtools output is easy to filter.\n- Success paths emit summary payloads with scope and file counts.\n- Skip and failure paths log structured details for unresolved links, duplicate exports, attachment writes, and editor versus vault update paths.\n- User-facing Notices remain concise while deeper operational detail stays in the console.",
+    "created_at": "2026-05-01T00:35:04Z",
+    "updated_at": "2026-05-01T00:35:04Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "zhar-agent"
+    },
+    "custom": {}
   }
 }

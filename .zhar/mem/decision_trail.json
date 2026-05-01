@@ -20,5 +20,23 @@
       "tradeoffs": "slower migration but lower regression risk"
     },
     "custom": {}
+  },
+  "0a7fc": {
+    "id": "0a7fc",
+    "group": "decision_trail",
+    "node_type": "lesson_learned",
+    "summary": "TypeScript toolchain upgrades require modern module resolution and stricter binary typing.",
+    "status": "active",
+    "tags": [],
+    "source": null,
+    "content": "Toolchain compatibility note:\n- After the dependency update, TypeScript needed modern module resolution to keep resolving obsidian and CodeMirror packages without editor deprecation noise.\n- Setting tsconfig moduleResolution to bundler restored package resolution cleanly under the current TypeScript toolchain.\n- The stricter compiler also required converting Node Buffers to copied ArrayBuffers before passing them to vault.createBinary.",
+    "created_at": "2026-05-01T00:54:44Z",
+    "updated_at": "2026-05-01T00:54:44Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "zhar-agent",
+      "trigger_event": "build-failure"
+    },
+    "custom": {}
   }
 }

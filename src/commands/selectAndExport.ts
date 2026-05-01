@@ -1,15 +1,62 @@
 import { App, Modal, Notice, Plugin, TFile } from "obsidian";
 
+const EXPORT_DEBUG_PREFIX = "[image-inline:export-images]";
+
+/**
+ * Writes a scoped debug message to the Obsidian developer console.
+ */
+function logExportDebug(message: string, details?: unknown): void {
+    if (details === undefined) {
+        console.debug(EXPORT_DEBUG_PREFIX, message);
+        return;
+    }
+
+    console.debug(EXPORT_DEBUG_PREFIX, message, details);
+}
+
+/**
+ * Writes a scoped warning message to the Obsidian developer console.
+ */
+function logExportWarning(message: string, details?: unknown): void {
+    if (details === undefined) {
+        console.warn(EXPORT_DEBUG_PREFIX, message);
+        return;
+    }
+
+    console.warn(EXPORT_DEBUG_PREFIX, message, details);
+}
+
+/**
+ * Writes a scoped error message to the Obsidian developer console.
+ */
+function logExportError(message: string, details?: unknown): void {
+    if (details === undefined) {
+        console.error(EXPORT_DEBUG_PREFIX, message);
+        return;
+    }
+
+    console.error(EXPORT_DEBUG_PREFIX, message, details);
+}
+
+/**
+ * Drives batch export of inline and linked note images into vault attachments.
+ */
 class ExportImagesModal extends Modal {
     private plugin: Plugin;
     private conversionScope: 'note' | 'folder' | 'vault';
 
+    /**
+     * Stores the plugin reference and default export scope for the modal session.
+     */
     constructor(app: App, plugin: Plugin) {
         super(app);
         this.plugin = plugin;
         this.conversionScope = 'note';
     }
 
+    /**
+     * Builds the modal UI for choosing which notes should be exported.
+     */
     onOpen() {
         const { contentEl } = this;
         contentEl.empty();
@@ -48,27 +95,34 @@ class ExportImagesModal extends Modal {
         });
     }
 
+    /**
+     * Exports inline and linked images from the selected note scope into attachments.
+     */
     async exportImages() {
         const files = await this.getFilesInScope();
-        console.log('Files in scope:', files.length);
         let exportedCount = 0;
         let skippedCount = 0;
+
+        logExportDebug('Starting image export', {
+            scope: this.conversionScope,
+            fileCount: files.length,
+        });
 
         for (const file of files) {
             const content = await this.app.vault.read(file);
             
             // Find base64 images
             const base64Regex = /!\[.*?\]\(data:image\/[^;]+;base64,([^)]+)\)/g;
-            const base64Matches = Array.from(content.matchAll(base64Regex));
             
             // Find image embeds
             const imageRegex = /!\[\[([^\]]+\.(png|jpg|jpeg))\]\]/g;
-            const imageMatches = Array.from(content.matchAll(imageRegex));
+            let base64Match: RegExpExecArray | null;
+            let imageMatch: RegExpExecArray | null;
 
             // Process base64 images
-            for (const match of base64Matches) {
+            while ((base64Match = base64Regex.exec(content)) !== null) {
                 try {
-                    const base64Data = match[1];
+                    const base64Data = base64Match[1];
                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
                     const filename = `base64_image_${timestamp}_${exportedCount}.png`;
                     
@@ -90,21 +144,32 @@ class ExportImagesModal extends Modal {
                         const existingSize = (await this.app.vault.readBinary(existingFile)).byteLength;
                         if (existingSize === array.buffer.byteLength) {
                             skippedCount++;
+                            logExportDebug('Skipped exporting base64 image because a matching attachment already exists', {
+                                note: file.path,
+                                targetPath,
+                            });
                             continue;
                         }
                     }
                     
                     await this.app.vault.createBinary(targetPath, array.buffer);
                     exportedCount++;
+                    logExportDebug('Exported inline base64 image to attachment', {
+                        note: file.path,
+                        targetPath,
+                    });
                 } catch (error) {
-                    console.error('Error processing base64 image:', error);
+                    logExportError('Failed to export inline base64 image', {
+                        note: file.path,
+                        error,
+                    });
                 }
             }
 
             // Process image embeds
-            for (const match of imageMatches) {
+            while ((imageMatch = imageRegex.exec(content)) !== null) {
                 try {
-                    const imagePath = match[1];
+                    const imagePath = imageMatch[1];
                     const imageFile = this.app.metadataCache.getFirstLinkpathDest(imagePath, file.path);
                     
                     if (imageFile instanceof TFile) {
@@ -120,18 +185,43 @@ class ExportImagesModal extends Modal {
                             const existingSize = (await this.app.vault.readBinary(existingFile)).byteLength;
                             if (existingSize === arrayBuffer.byteLength) {
                                 skippedCount++;
+                                logExportDebug('Skipped exporting linked image because a matching attachment already exists', {
+                                    note: file.path,
+                                    sourceImage: imageFile.path,
+                                    targetPath,
+                                });
                                 continue;
                             }
                         }
 
                         await this.app.vault.createBinary(targetPath, arrayBuffer);
                         exportedCount++;
+                        logExportDebug('Exported linked image to attachment', {
+                            note: file.path,
+                            sourceImage: imageFile.path,
+                            targetPath,
+                        });
+                    } else {
+                        logExportWarning('Skipped linked image export because the embed target could not be resolved', {
+                            note: file.path,
+                            imagePath,
+                        });
                     }
                 } catch (error) {
-                    console.error('Error processing image embed:', error);
+                    logExportError('Failed to export linked image embed', {
+                        note: file.path,
+                        error,
+                    });
                 }
             }
         }
+
+        logExportDebug('Completed image export', {
+            scope: this.conversionScope,
+            exportedCount,
+            skippedCount,
+            totalFiles: files.length,
+        });
 
         if (exportedCount > 0 || skippedCount > 0) {
             new Notice(`Exported ${exportedCount} images, skipped ${skippedCount} duplicates`);
@@ -140,15 +230,27 @@ class ExportImagesModal extends Modal {
         }
     }
 
+    /**
+     * Collects markdown files for the currently selected export scope.
+     */
     async getFilesInScope(): Promise<TFile[]> {
         switch (this.conversionScope) {
             case 'note':
                 const activeFile = this.app.workspace.getActiveFile();
-                return activeFile ? [activeFile] : [];
+                if (!activeFile) {
+                    logExportWarning('No active file was available for note-scoped export');
+                    return [];
+                }
+
+                return [activeFile];
             
             case 'folder':
                 const currentFile = this.app.workspace.getActiveFile();
-                if (!currentFile?.parent) return [];
+                if (!currentFile?.parent) {
+                    logExportWarning('No active folder was available for folder-scoped export');
+                    return [];
+                }
+
                 return this.app.vault.getMarkdownFiles().filter(f => f.parent === currentFile.parent);
             
             case 'vault':
@@ -159,12 +261,18 @@ class ExportImagesModal extends Modal {
         }
     }
 
+    /**
+     * Clears modal contents after the export dialog closes.
+     */
     onClose() {
         const { contentEl } = this;
         contentEl.empty();
     }
 }
 
+/**
+ * Registers the batch image export command in the command palette.
+ */
 export function registerExportCommand(plugin: Plugin) {
     plugin.addCommand({
         id: 'export-images',
