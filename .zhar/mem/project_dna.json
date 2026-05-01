@@ -1,0 +1,43 @@
+{
+  "00a79": {
+    "id": "00a79",
+    "group": "project_dna",
+    "node_type": "core_goal",
+    "summary": "Keep images inline in Obsidian notes while preserving optional attachment and export workflows.",
+    "status": "active",
+    "tags": [
+      "obsidian-plugin",
+      "image-inline"
+    ],
+    "source": null,
+    "content": null,
+    "created_at": "2026-05-01T00:00:04Z",
+    "updated_at": "2026-05-01T00:00:04Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "zhar-agent"
+    },
+    "custom": {}
+  },
+  "01afb": {
+    "id": "01afb",
+    "group": "project_dna",
+    "node_type": "product_context",
+    "summary": "Image Inline serves vaults that prefer base64 image embeds over separate attachment files.",
+    "status": "active",
+    "tags": [
+      "obsidian-plugin",
+      "image-inline"
+    ],
+    "source": null,
+    "content": "Image Inline is an Obsidian community plugin focused on inline image workflows. It converts pasted, dropped, local, and remote images into Markdown data URLs, while still supporting attachment export and batch conversion flows when users need files back in the vault.",
+    "created_at": "2026-05-01T00:00:05Z",
+    "updated_at": "2026-05-01T00:00:05Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "zhar-agent",
+      "audience": "Obsidian users who want inline image notes"
+    },
+    "custom": {}
+  }
+}

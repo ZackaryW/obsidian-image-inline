@@ -1,0 +1,42 @@
+{
+  "02396": {
+    "id": "02396",
+    "group": "architecture_context",
+    "node_type": "architecture",
+    "summary": "The plugin is being modernized around shared MIME-aware base64 utilities.",
+    "status": "active",
+    "tags": [
+      "obsidian-plugin",
+      "image-inline"
+    ],
+    "source": null,
+    "content": "Current architecture direction:\n- Shared utility modules under src/utils/base64 own binary/base64 encoding, MIME normalization, and image persistence decisions.\n- Main plugin flows, context-menu actions, and batch conversion commands should consume those helpers instead of duplicating PNG-specific logic.\n- The compatibility barrel at src/utils/conversion.ts keeps the existing import surface stable while the rest of the codebase is incrementally modernized.",
+    "created_at": "2026-05-01T00:00:05Z",
+    "updated_at": "2026-05-01T00:00:42Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "zhar-agent"
+    },
+    "custom": {}
+  },
+  "03623": {
+    "id": "03623",
+    "group": "architecture_context",
+    "node_type": "tech_setup",
+    "summary": "Repo builds as a TypeScript Obsidian plugin with esbuild and focused utility tests.",
+    "status": "active",
+    "tags": [
+      "obsidian-plugin",
+      "image-inline"
+    ],
+    "source": null,
+    "content": "Working commands:\n- npm run build -> TypeScript compile check plus esbuild production bundle.\n- npm run test:utils -> focused node:test coverage for base64, MIME, and persistence helpers.\n- npm run test -> legacy obs-dev integration path.\n\nRelevant repo files:\n- manifest.json declares plugin id image-inline.\n- src/main.ts is the plugin entry point.\n- src/utils/base64 contains the current modernization slice.",
+    "created_at": "2026-05-01T00:00:05Z",
+    "updated_at": "2026-05-01T00:00:42Z",
+    "expires_at": null,
+    "metadata": {
+      "agent": "zhar-agent"
+    },
+    "custom": {}
+  }
+}

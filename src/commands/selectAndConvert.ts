@@ -1,10 +1,17 @@
 import { App, Modal, Notice, Plugin, TFile } from "obsidian";
+import { Base64File, createImageFile } from "../utils/conversion";
 
+/**
+ * Drives batch conversion of note, folder, or vault image references between file and inline formats.
+ */
 class ConvertImagesModal extends Modal {
     private plugin: Plugin;
     private conversionScope: 'note' | 'folder' | 'vault';
     private conversionType: 'toBase64' | 'toImage';
 
+    /**
+     * Stores the plugin reference and default conversion options for the modal session.
+     */
     constructor(app: App, plugin: Plugin) {
         super(app);
         this.plugin = plugin;
@@ -12,6 +19,9 @@ class ConvertImagesModal extends Modal {
         this.conversionType = 'toBase64';
     }
 
+    /**
+     * Builds the modal UI for choosing conversion scope and direction.
+     */
     onOpen() {
         const { contentEl } = this;
         contentEl.empty();
@@ -69,6 +79,9 @@ class ConvertImagesModal extends Modal {
         });
     }
 
+    /**
+     * Runs the requested batch conversion over the selected note scope.
+     */
     async performConversion() {
         const files = await this.getFilesInScope();
         console.log('Files in scope:', files.length);
@@ -103,6 +116,9 @@ class ConvertImagesModal extends Modal {
         new Notice(`Converted ${converted} files`);
     }
 
+    /**
+     * Collects markdown files for the currently selected conversion scope.
+     */
     async getFilesInScope(): Promise<TFile[]> {
         switch (this.conversionScope) {
             case 'note':
@@ -122,6 +138,9 @@ class ConvertImagesModal extends Modal {
         }
     }
 
+    /**
+     * Rewrites local image embeds in a note into MIME-aware inline data URLs.
+     */
     async convertToBase64(file: TFile) {
         const content = await this.app.vault.read(file);
         const imageRegex = /!\[\[([^\]]+\.(png|jpg|jpeg))\]\]/g;
@@ -138,17 +157,12 @@ class ConvertImagesModal extends Modal {
             
             if (imageFile instanceof TFile) {
                 try {
-                    const arrayBuffer = await this.app.vault.readBinary(imageFile);
-                    const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-                    const mimeType = imageFile.extension === 'png' ? 'image/png' : 'image/jpeg';
-                    const base64Data = `data:${mimeType};base64,${base64}`;
-                    
                     const markdown = `![[${imageFile.name}]]`;
-                    const newMarkdown = `![${imageFile.name}](${base64Data})`;
+                    const newMarkdown = (await Base64File.fromTFile(imageFile)).to64Link();
                     newContent = newContent.replace(markdown, newMarkdown);
                     modified = true;
-                } catch (error) {
-                    console.error('Error converting image:', error);
+                } catch {
+                    continue;
                 }
             }
         }
@@ -158,25 +172,24 @@ class ConvertImagesModal extends Modal {
         }
     }
 
+	/**
+	 * Writes inline data URLs back to vault attachments while preserving their image metadata.
+	 */
     async convertToImages(file: TFile, matches: string[]) {
         const content = await this.app.vault.read(file);
         let newContent = content;
 
         for (const match of matches) {
-            const base64Match = match.match(/data:image\/[^;]+;base64,([^)]+)/);
-            if (!base64Match) continue;
-
-            const base64Data = base64Match[1];
-            const buffer = Buffer.from(base64Data, 'base64');
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const filename = `image_${timestamp}.png`;
+            const base64File = Base64File.from64Link(match);
+            if (!base64File) continue;
             
             const targetPath = await this.app.fileManager.getAvailablePathForAttachment(
-                filename,
+                base64File.filename,
                 file.path
             );
             
-            await this.app.vault.createBinary(targetPath, buffer);
+            const imageFile = createImageFile(base64File);
+            await this.app.vault.createBinary(targetPath, await imageFile.arrayBuffer());
             
             const newFile = this.app.vault.getAbstractFileByPath(targetPath);
             if (newFile instanceof TFile) {
@@ -190,12 +203,18 @@ class ConvertImagesModal extends Modal {
         }
     }
 
+    /**
+     * Clears modal contents after the batch conversion dialog closes.
+     */
     onClose() {
         const { contentEl } = this;
         contentEl.empty();
     }
 }
 
+    /**
+     * Registers the batch conversion command in the command palette.
+     */
 export function registerConvertCommand(plugin: Plugin) {
     plugin.addCommand({
         id: 'convert-images',

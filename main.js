@@ -30,98 +30,253 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 var import_obsidian6 = require("obsidian");
 
-// src/utils/conversion.ts
-var Base64File = class _Base64File {
-  constructor(buffer, filename) {
-    this.buffer = buffer;
-    this.filename = filename || "image";
+// src/utils/base64/arrayBufferBase64.ts
+var BYTE_CHUNK_SIZE = 32768;
+function encodeArrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += BYTE_CHUNK_SIZE) {
+    const chunk = bytes.subarray(offset, offset + BYTE_CHUNK_SIZE);
+    for (const byte of chunk) {
+      binary += String.fromCharCode(byte);
+    }
   }
+  return btoa(binary);
+}
+function decodeBase64ToArrayBuffer(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
+}
+
+// src/utils/base64/imageMime.ts
+var DEFAULT_IMAGE_MIME_TYPE = "image/png";
+var EXTENSION_TO_MIME_TYPE = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  bmp: "image/bmp",
+  svg: "image/svg+xml",
+  avif: "image/avif"
+};
+var MIME_TYPE_TO_EXTENSION = {
+  "image/png": "png",
+  "image/jpeg": "jpeg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/bmp": "bmp",
+  "image/svg+xml": "svg",
+  "image/avif": "avif"
+};
+function inferMimeTypeFromFilename(filename) {
+  var _a, _b;
+  if (!filename) {
+    return DEFAULT_IMAGE_MIME_TYPE;
+  }
+  const extension = (_a = filename.split(".").pop()) == null ? void 0 : _a.toLowerCase();
+  if (!extension) {
+    return DEFAULT_IMAGE_MIME_TYPE;
+  }
+  return (_b = EXTENSION_TO_MIME_TYPE[extension]) != null ? _b : DEFAULT_IMAGE_MIME_TYPE;
+}
+function normalizeImageMimeType(mimeType, filename) {
+  if (!mimeType) {
+    return inferMimeTypeFromFilename(filename);
+  }
+  if (mimeType === "image/jpg") {
+    return "image/jpeg";
+  }
+  return mimeType;
+}
+function normalizeImageFilename(filename, mimeType) {
+  var _a;
+  const safeFilename = (filename == null ? void 0 : filename.trim()) || "image";
+  if (safeFilename.includes(".")) {
+    return safeFilename;
+  }
+  const extension = (_a = MIME_TYPE_TO_EXTENSION[mimeType]) != null ? _a : "png";
+  return `${safeFilename}.${extension}`;
+}
+function replaceFilenameExtension(filename, mimeType) {
+  const baseName = filename.includes(".") ? filename.slice(0, filename.lastIndexOf(".")) : filename;
+  return normalizeImageFilename(baseName, mimeType);
+}
+
+// src/utils/base64/base64File.ts
+function parseMarkdownImageDataUrl(link) {
+  const match = link.match(/^!\[(.*?)\]\(data:(image\/[^;]+);base64,([^\)]+)\)$/);
+  if (!match) {
+    return null;
+  }
+  return {
+    filename: match[1],
+    mimeType: normalizeImageMimeType(match[2], match[1]),
+    base64: match[3]
+  };
+}
+var Base64File = class _Base64File {
+  constructor(bufferOrInit, filename, mimeType) {
+    const init = bufferOrInit instanceof ArrayBuffer ? { buffer: bufferOrInit, filename, mimeType } : bufferOrInit;
+    const resolvedMimeType = normalizeImageMimeType(init.mimeType, init.filename);
+    this.buffer = init.buffer;
+    this.mimeType = resolvedMimeType;
+    this.filename = normalizeImageFilename(init.filename, resolvedMimeType);
+  }
+  /**
+   * Reports the raw binary size of the wrapped image payload.
+   */
   get size() {
     return this.buffer.byteLength;
   }
+  /**
+   * Encodes the wrapped binary image into base64 text.
+   */
+  toBase64String() {
+    return encodeArrayBufferToBase64(this.buffer);
+  }
+  /**
+   * Builds an inline Markdown image using the file's current MIME type and filename.
+   */
+  toMarkdownImage() {
+    return `![${this.filename}](data:${this.mimeType};base64,${this.toBase64String()})`;
+  }
+  /**
+   * Preserves compatibility with the existing plugin API for base64 string generation.
+   */
   to64String() {
-    const bytes = new Uint8Array(this.buffer);
-    let binary = "";
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return btoa(binary);
+    return this.toBase64String();
   }
+  /**
+   * Preserves compatibility with the existing plugin API for inline Markdown generation.
+   */
   to64Link() {
-    return `![${this.filename}](data:image/png;base64,${this.to64String()})`;
+    return this.toMarkdownImage();
   }
-  //class methods
+  /**
+   * Rehydrates a Base64File from an inline Markdown image data URL.
+   */
   static from64Link(link) {
-    const match = link.match(/!\[(.*?)\]\(data:image\/png;base64,(.*?)\)/);
-    if (!match) return null;
-    const filename = match[1];
-    const base64 = match[2];
-    const buffer = Buffer.from(base64, "base64");
-    return new _Base64File(buffer, filename);
+    const parsed = parseMarkdownImageDataUrl(link);
+    if (!parsed) {
+      return null;
+    }
+    return new _Base64File({
+      buffer: decodeBase64ToArrayBuffer(parsed.base64),
+      filename: parsed.filename,
+      mimeType: parsed.mimeType
+    });
   }
-  static from64String(base64, filename) {
-    const buffer = Buffer.from(base64, "base64");
-    return new _Base64File(buffer, filename);
+  /**
+   * Rehydrates a Base64File from raw base64 data and optional image metadata.
+   */
+  static from64String(base64, filename, mimeType) {
+    return new _Base64File({
+      buffer: decodeBase64ToArrayBuffer(base64),
+      filename,
+      mimeType
+    });
   }
+  /**
+   * Builds a Base64File from a browser File while preserving browser-provided MIME metadata.
+   */
   static async fromFile(file) {
     const arrayBuffer = await file.arrayBuffer();
-    return new _Base64File(arrayBuffer, file.name);
+    return new _Base64File({
+      buffer: arrayBuffer,
+      filename: file.name,
+      mimeType: file.type || inferMimeTypeFromFilename(file.name)
+    });
   }
+  /**
+   * Builds a Base64File from an Obsidian vault file while inferring MIME metadata from its name.
+   */
   static async fromTFile(tfile) {
     const arrayBuffer = await tfile.vault.readBinary(tfile);
-    return new _Base64File(arrayBuffer, tfile.name);
+    return new _Base64File({
+      buffer: arrayBuffer,
+      filename: tfile.name,
+      mimeType: inferMimeTypeFromFilename(tfile.name)
+    });
   }
 };
+
+// src/utils/base64/base64Conversion.ts
 var Base64Conversion = class {
+  /**
+   * Extracts the first image payload from a clipboard paste event.
+   */
   async fromClipboardEvent(event) {
     var _a;
     const items = (_a = event.clipboardData) == null ? void 0 : _a.items;
-    if (!items) return null;
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) {
-          return this.fromFile(file);
-        }
+    if (!items) {
+      return null;
+    }
+    for (const item of Array.from(items)) {
+      if (!item.type.startsWith("image/")) {
+        continue;
+      }
+      const file = item.getAsFile();
+      if (file) {
+        return this.fromFile(file);
       }
     }
     return null;
   }
+  /**
+   * Extracts the first image payload from the async clipboard API when available.
+   */
   async fromClipboard() {
+    var _a;
     try {
       const items = await navigator.clipboard.read();
       for (const item of items) {
-        if (item.types.includes("image/png") || item.types.includes("image/jpeg")) {
-          const blob = await item.getType("image/png") || await item.getType("image/jpeg");
-          if (blob) {
-            const arrayBuffer = await blob.arrayBuffer();
-            return new Base64File(arrayBuffer);
-          }
+        const imageType = item.types.find((type) => type.startsWith("image/"));
+        if (!imageType) {
+          continue;
         }
+        const blob = await item.getType(imageType);
+        const arrayBuffer = await blob.arrayBuffer();
+        return new Base64File({
+          buffer: arrayBuffer,
+          filename: `clipboard.${(_a = imageType.split("/")[1]) != null ? _a : "png"}`,
+          mimeType: imageType
+        });
       }
-    } catch (error) {
-      console.error("Error reading from clipboard:", error);
+    } catch (e) {
+      return null;
     }
     return null;
   }
+  /**
+   * Converts a browser File into the plugin's image wrapper.
+   */
   async fromFile(file) {
-    const arrayBuffer = await file.arrayBuffer();
-    return new Base64File(arrayBuffer, file.name);
+    return Base64File.fromFile(file);
   }
+  /**
+   * Converts an Obsidian vault file into the plugin's image wrapper.
+   */
   async fromTFile(tfile) {
-    const arrayBuffer = await tfile.vault.readBinary(tfile);
-    return new Base64File(arrayBuffer);
+    return Base64File.fromTFile(tfile);
   }
+  /**
+   * Resizes an image and returns a PNG payload suitable for inline embedding.
+   */
   async resize(file, percentage) {
     return new Promise((resolve, reject) => {
-      const blob = new Blob([file.buffer]);
+      const blob = new Blob([file.buffer], { type: file.mimeType });
       const imageUrl = URL.createObjectURL(blob);
       const img = new Image();
       img.onload = () => {
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         if (!ctx) {
+          URL.revokeObjectURL(imageUrl);
           reject(new Error("Could not get canvas context"));
           return;
         }
@@ -130,15 +285,24 @@ var Base64Conversion = class {
         canvas.width = newWidth;
         canvas.height = newHeight;
         ctx.drawImage(img, 0, 0, newWidth, newHeight);
-        canvas.toBlob((blob2) => {
-          if (!blob2) {
+        canvas.toBlob(async (resizedBlob) => {
+          if (!resizedBlob) {
+            URL.revokeObjectURL(imageUrl);
             reject(new Error("Could not create blob from canvas"));
             return;
           }
-          blob2.arrayBuffer().then((arrayBuffer) => {
+          try {
+            const arrayBuffer = await resizedBlob.arrayBuffer();
             URL.revokeObjectURL(imageUrl);
-            resolve(new Base64File(arrayBuffer));
-          }).catch(reject);
+            resolve(new Base64File({
+              buffer: arrayBuffer,
+              filename: replaceFilenameExtension(file.filename, "image/png"),
+              mimeType: "image/png"
+            }));
+          } catch (error) {
+            URL.revokeObjectURL(imageUrl);
+            reject(error);
+          }
         }, "image/png");
       };
       img.onerror = () => {
@@ -149,6 +313,32 @@ var Base64Conversion = class {
     });
   }
 };
+
+// src/utils/base64/imagePersistence.ts
+function splitFilenameParts(filename) {
+  const lastDot = filename.lastIndexOf(".");
+  if (lastDot <= 0) {
+    return {
+      stem: filename,
+      extension: ""
+    };
+  }
+  return {
+    stem: filename.slice(0, lastDot),
+    extension: filename.slice(lastDot + 1)
+  };
+}
+function buildOriginalBackupFilename(file, timestamp) {
+  const mimeType = normalizeImageMimeType(file.mimeType, file.filename);
+  const filename = normalizeImageFilename(file.filename, mimeType);
+  const { stem, extension } = splitFilenameParts(filename);
+  return extension ? `${stem}_original_${timestamp}.${extension}` : `${stem}_original_${timestamp}`;
+}
+function createImageFile(file, filename = file.filename) {
+  const mimeType = normalizeImageMimeType(file.mimeType, filename);
+  const resolvedFilename = normalizeImageFilename(filename, mimeType);
+  return new File([file.buffer], resolvedFilename, { type: mimeType });
+}
 
 // src/coms/antiLinkExpand.ts
 var import_view = require("@codemirror/view");
@@ -262,23 +452,24 @@ async function registerExportToLocal(plugin) {
 // src/comsContext/convert.ts
 var import_obsidian2 = require("obsidian");
 var ConvertToBase64Modal = class extends import_obsidian2.Modal {
+  /**
+   * Captures the target image file and editor used for the one-line replacement.
+   */
   constructor(app, file, editor) {
     super(app);
     this.file = file;
     this.editor = editor;
   }
+  /**
+   * Replaces the current local image embed with an inline Markdown image in the active editor line.
+   */
   async onOpen() {
     const { contentEl } = this;
     contentEl.createEl("h2", { text: "Convert to Base64" });
     try {
-      const arrayBuffer = await this.app.vault.readBinary(this.file);
-      const base64 = btoa(
-        String.fromCharCode(...new Uint8Array(arrayBuffer))
-      );
-      const mimeType = this.file.extension === "png" ? "image/png" : "image/jpeg";
-      const base64Data = `data:${mimeType};base64,${base64}`;
+      const inlineImage = await Base64File.fromTFile(this.file);
       const markdown = `![[${this.file.name}]]`;
-      const newMarkdown = `![${this.file.name}](${base64Data})`;
+      const newMarkdown = inlineImage.to64Link();
       const cursor = this.editor.getCursor();
       const line = this.editor.getLine(cursor.line);
       const newLine = line.replace(markdown, newMarkdown);
@@ -297,10 +488,14 @@ var ConvertToBase64Modal = class extends import_obsidian2.Modal {
       );
       new import_obsidian2.Notice("Image converted to base64");
     } catch (error) {
-      new import_obsidian2.Notice("Failed to convert image: " + error.message);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      new import_obsidian2.Notice("Failed to convert image: " + message);
     }
     this.close();
   }
+  /**
+   * Clears modal contents when the temporary conversion dialog closes.
+   */
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
@@ -316,6 +511,7 @@ async function fetchOnlineImage(url) {
     if (!contentType) {
       throw new Error("No content type received from server");
     }
+    const mimeType = contentType.split(";")[0].trim();
     if (!contentType.startsWith("image/")) {
       throw new Error(
         `URL does not point to an image (content-type: ${contentType})`
@@ -329,15 +525,108 @@ async function fetchOnlineImage(url) {
     let filename = url.split("/").pop() || "image";
     filename = filename.split("?")[0];
     if (!filename.includes(".")) {
-      const ext = contentType.split("/")[1] || "png";
+      const ext = mimeType.split("/")[1] || "png";
       filename = `${filename}.${ext}`;
     }
-    return new Base64File(arrayBuffer, filename);
+    return new Base64File({ buffer: arrayBuffer, filename, mimeType });
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`Failed to fetch online image: ${error.message}`);
     }
     throw new Error("Failed to fetch online image: Unknown error");
+  }
+}
+async function handleImageResizing(base64File, plugin, activeFile) {
+  const sizeInKB = base64File.size / 1024;
+  let processedFile = base64File;
+  let shouldSaveAsAttachment = false;
+  if (plugin.settings.enableResizing) {
+    if (plugin.settings.resizeStrategy === "smaller") {
+      if (sizeInKB > plugin.settings.smallerThreshold) {
+        shouldSaveAsAttachment = true;
+      }
+    } else {
+      if (sizeInKB > plugin.settings.largerThreshold || plugin.settings.resizeSmallerFiles) {
+        processedFile = await plugin.conversion.resize(
+          base64File,
+          plugin.settings.resizePercentage
+        );
+        if (plugin.settings.backupOriginalImage && activeFile) {
+          const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
+          const backupFilename = buildOriginalBackupFilename(base64File, timestamp);
+          const targetPath = await plugin.app.fileManager.getAvailablePathForAttachment(
+            backupFilename,
+            activeFile.path
+          );
+          const file = createImageFile(base64File, backupFilename);
+          await plugin.app.vault.createBinary(
+            targetPath,
+            await file.arrayBuffer()
+          );
+        }
+      }
+    }
+  }
+  return { processedFile, shouldSaveAsAttachment };
+}
+async function convertOnlineImageToBase64(imageUrl, plugin, editor, line, cursor, onlineMatch) {
+  try {
+    const base64File = await fetchOnlineImage(imageUrl);
+    const activeFile = plugin.app.workspace.getActiveFile();
+    const { processedFile, shouldSaveAsAttachment } = await handleImageResizing(
+      base64File,
+      plugin,
+      activeFile
+    );
+    if (shouldSaveAsAttachment && activeFile) {
+      const file = createImageFile(base64File);
+      const targetPath = await plugin.app.fileManager.getAvailablePathForAttachment(
+        base64File.filename,
+        activeFile.path
+      );
+      const newFile = await plugin.app.vault.createBinary(
+        targetPath,
+        await file.arrayBuffer()
+      );
+      const link = plugin.app.fileManager.generateMarkdownLink(
+        newFile,
+        activeFile.path
+      );
+      const newLine2 = line.replace(onlineMatch[0], link);
+      const lineStart2 = editor.posToOffset({
+        line: cursor.line,
+        ch: 0
+      });
+      const lineEnd2 = editor.posToOffset({
+        line: cursor.line,
+        ch: line.length
+      });
+      editor.replaceRange(
+        newLine2,
+        editor.offsetToPos(lineStart2),
+        editor.offsetToPos(lineEnd2)
+      );
+      new import_obsidian2.Notice("Image saved as attachment due to size");
+      return;
+    }
+    const newLine = line.replace(onlineMatch[0], processedFile.to64Link());
+    const lineStart = editor.posToOffset({
+      line: cursor.line,
+      ch: 0
+    });
+    const lineEnd = editor.posToOffset({
+      line: cursor.line,
+      ch: line.length
+    });
+    editor.replaceRange(
+      newLine,
+      editor.offsetToPos(lineStart),
+      editor.offsetToPos(lineEnd)
+    );
+    new import_obsidian2.Notice("Online image converted to base64");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to convert online image: Unknown error";
+    new import_obsidian2.Notice(message);
   }
 }
 async function registerConvertImage(plugin) {
@@ -372,118 +661,14 @@ async function registerConvertImage(plugin) {
         const imageUrl = onlineMatch[2];
         menu.addItem((item) => {
           item.setTitle("Convert online image to base64").setIcon("code-glyph").onClick(async () => {
-            try {
-              const base64File = await fetchOnlineImage(
-                imageUrl
-              );
-              const sizeInKB = base64File.size / 1024;
-              let processedFile = base64File;
-              if (plugin.settings.enableResizing) {
-                if (plugin.settings.resizeStrategy === "smaller") {
-                  if (sizeInKB > plugin.settings.smallerThreshold) {
-                    const activeFile = plugin.app.workspace.getActiveFile();
-                    if (activeFile) {
-                      const file = new File(
-                        [base64File.buffer],
-                        base64File.filename,
-                        { type: "image/png" }
-                      );
-                      const targetPath = await plugin.app.fileManager.getAvailablePathForAttachment(
-                        base64File.filename,
-                        activeFile.path
-                      );
-                      const newFile = await plugin.app.vault.createBinary(
-                        targetPath,
-                        await file.arrayBuffer()
-                      );
-                      const link = plugin.app.fileManager.generateMarkdownLink(
-                        newFile,
-                        activeFile.path
-                      );
-                      const newLine2 = line.replace(
-                        onlineMatch[0],
-                        link
-                      );
-                      const lineStart2 = editor.posToOffset({
-                        line: cursor.line,
-                        ch: 0
-                      });
-                      const lineEnd2 = editor.posToOffset({
-                        line: cursor.line,
-                        ch: line.length
-                      });
-                      editor.replaceRange(
-                        newLine2,
-                        editor.offsetToPos(
-                          lineStart2
-                        ),
-                        editor.offsetToPos(lineEnd2)
-                      );
-                      new import_obsidian2.Notice(
-                        "Image saved as attachment due to size"
-                      );
-                      return;
-                    }
-                  }
-                } else {
-                  if (sizeInKB > plugin.settings.largerThreshold || plugin.settings.resizeSmallerFiles) {
-                    processedFile = await plugin.conversion.resize(
-                      base64File,
-                      plugin.settings.resizePercentage
-                    );
-                    if (plugin.settings.backupOriginalImage) {
-                      const activeFile = plugin.app.workspace.getActiveFile();
-                      if (activeFile) {
-                        const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-                        const backupFilename = `${base64File.filename.replace(
-                          ".png",
-                          ""
-                        )}_original_${timestamp}.png`;
-                        const targetPath = await plugin.app.fileManager.getAvailablePathForAttachment(
-                          backupFilename,
-                          activeFile.path
-                        );
-                        const file = new File(
-                          [base64File.buffer],
-                          backupFilename,
-                          { type: "image/png" }
-                        );
-                        await plugin.app.vault.createBinary(
-                          targetPath,
-                          await file.arrayBuffer()
-                        );
-                      }
-                    }
-                  }
-                }
-              }
-              const newLine = line.replace(
-                onlineMatch[0],
-                processedFile.to64Link()
-              );
-              const lineStart = editor.posToOffset({
-                line: cursor.line,
-                ch: 0
-              });
-              const lineEnd = editor.posToOffset({
-                line: cursor.line,
-                ch: line.length
-              });
-              editor.replaceRange(
-                newLine,
-                editor.offsetToPos(lineStart),
-                editor.offsetToPos(lineEnd)
-              );
-              new import_obsidian2.Notice("Online image converted to base64");
-            } catch (error) {
-              if (error instanceof Error) {
-                new import_obsidian2.Notice(error.message);
-              } else {
-                new import_obsidian2.Notice(
-                  "Failed to convert online image: Unknown error"
-                );
-              }
-            }
+            await convertOnlineImageToBase64(
+              imageUrl,
+              plugin,
+              editor,
+              line,
+              cursor,
+              onlineMatch
+            );
           });
         });
       }
@@ -494,12 +679,18 @@ async function registerConvertImage(plugin) {
 // src/commands/selectAndConvert.ts
 var import_obsidian3 = require("obsidian");
 var ConvertImagesModal = class extends import_obsidian3.Modal {
+  /**
+   * Stores the plugin reference and default conversion options for the modal session.
+   */
   constructor(app, plugin) {
     super(app);
     this.plugin = plugin;
     this.conversionScope = "note";
     this.conversionType = "toBase64";
   }
+  /**
+   * Builds the modal UI for choosing conversion scope and direction.
+   */
   onOpen() {
     const { contentEl } = this;
     contentEl.empty();
@@ -543,6 +734,9 @@ var ConvertImagesModal = class extends import_obsidian3.Modal {
       this.close();
     });
   }
+  /**
+   * Runs the requested batch conversion over the selected note scope.
+   */
   async performConversion() {
     const files = await this.getFilesInScope();
     console.log("Files in scope:", files.length);
@@ -570,6 +764,9 @@ var ConvertImagesModal = class extends import_obsidian3.Modal {
     }
     new import_obsidian3.Notice(`Converted ${converted} files`);
   }
+  /**
+   * Collects markdown files for the currently selected conversion scope.
+   */
   async getFilesInScope() {
     switch (this.conversionScope) {
       case "note":
@@ -585,6 +782,9 @@ var ConvertImagesModal = class extends import_obsidian3.Modal {
         return [];
     }
   }
+  /**
+   * Rewrites local image embeds in a note into MIME-aware inline data URLs.
+   */
   async convertToBase64(file) {
     const content = await this.app.vault.read(file);
     const imageRegex = /!\[\[([^\]]+\.(png|jpg|jpeg))\]\]/g;
@@ -596,16 +796,12 @@ var ConvertImagesModal = class extends import_obsidian3.Modal {
       const imageFile = this.app.metadataCache.getFirstLinkpathDest(imagePath, file.path);
       if (imageFile instanceof import_obsidian3.TFile) {
         try {
-          const arrayBuffer = await this.app.vault.readBinary(imageFile);
-          const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-          const mimeType = imageFile.extension === "png" ? "image/png" : "image/jpeg";
-          const base64Data = `data:${mimeType};base64,${base64}`;
           const markdown = `![[${imageFile.name}]]`;
-          const newMarkdown = `![${imageFile.name}](${base64Data})`;
+          const newMarkdown = (await Base64File.fromTFile(imageFile)).to64Link();
           newContent = newContent.replace(markdown, newMarkdown);
           modified = true;
-        } catch (error) {
-          console.error("Error converting image:", error);
+        } catch (e) {
+          continue;
         }
       }
     }
@@ -613,21 +809,21 @@ var ConvertImagesModal = class extends import_obsidian3.Modal {
       await this.app.vault.modify(file, newContent);
     }
   }
+  /**
+   * Writes inline data URLs back to vault attachments while preserving their image metadata.
+   */
   async convertToImages(file, matches) {
     const content = await this.app.vault.read(file);
     let newContent = content;
     for (const match of matches) {
-      const base64Match = match.match(/data:image\/[^;]+;base64,([^)]+)/);
-      if (!base64Match) continue;
-      const base64Data = base64Match[1];
-      const buffer = Buffer.from(base64Data, "base64");
-      const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-      const filename = `image_${timestamp}.png`;
+      const base64File = Base64File.from64Link(match);
+      if (!base64File) continue;
       const targetPath = await this.app.fileManager.getAvailablePathForAttachment(
-        filename,
+        base64File.filename,
         file.path
       );
-      await this.app.vault.createBinary(targetPath, buffer);
+      const imageFile = createImageFile(base64File);
+      await this.app.vault.createBinary(targetPath, await imageFile.arrayBuffer());
       const newFile = this.app.vault.getAbstractFileByPath(targetPath);
       if (newFile instanceof import_obsidian3.TFile) {
         const link = this.app.fileManager.generateMarkdownLink(newFile, file.path);
@@ -638,6 +834,9 @@ var ConvertImagesModal = class extends import_obsidian3.Modal {
       await this.app.vault.modify(file, newContent);
     }
   }
+  /**
+   * Clears modal contents after the batch conversion dialog closes.
+   */
   onClose() {
     const { contentEl } = this;
     contentEl.empty();
@@ -866,6 +1065,9 @@ var DEFAULT_SETTINGS = {
   // Default to false
 };
 var ImageInlinePlugin = class extends import_obsidian6.Plugin {
+  /**
+   * Registers commands, editor integrations, and settings when the plugin loads.
+   */
   async onload() {
     await this.loadSettings();
     this.conversion = new Base64Conversion();
@@ -922,6 +1124,9 @@ var ImageInlinePlugin = class extends import_obsidian6.Plugin {
     );
     this.addSettingTab(new ImageInlineSettingTab(this.app, this));
   }
+  /**
+   * Converts pasted or dropped images into inline Markdown or vault attachments based on settings.
+   */
   async handleImages(base64Files, editor) {
     try {
       if (!this.settings.enableResizing) {
@@ -947,12 +1152,12 @@ var ImageInlinePlugin = class extends import_obsidian6.Plugin {
               const activeFile = this.app.workspace.getActiveFile();
               if (activeFile) {
                 const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-");
-                const backupFilename = `${base64File.filename.replace(".png", "")}_original_${timestamp}.png`;
+                const backupFilename = buildOriginalBackupFilename(base64File, timestamp);
                 const targetPath = await this.app.fileManager.getAvailablePathForAttachment(
                   backupFilename,
                   activeFile.path
                 );
-                const file = new File([base64File.buffer], backupFilename, { type: "image/png" });
+                const file = createImageFile(base64File, backupFilename);
                 await this.app.vault.createBinary(
                   targetPath,
                   await file.arrayBuffer()
@@ -973,7 +1178,7 @@ var ImageInlinePlugin = class extends import_obsidian6.Plugin {
         for (const attachment of attachments) {
           const activeFile = this.app.workspace.getActiveFile();
           if (activeFile) {
-            const file = new File([attachment.buffer], attachment.filename, { type: "image/png" });
+            const file = createImageFile(attachment);
             const targetPath = await this.app.fileManager.getAvailablePathForAttachment(
               attachment.filename,
               activeFile.path
@@ -991,21 +1196,34 @@ var ImageInlinePlugin = class extends import_obsidian6.Plugin {
         }
       }
     } catch (error) {
-      new import_obsidian6.Notice("Failed to process images: " + error.message);
+      const message = error instanceof Error ? error.message : "Unknown error";
+      new import_obsidian6.Notice("Failed to process images: " + message);
     }
   }
+  /**
+   * Loads persisted plugin settings and merges them with defaults.
+   */
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
+  /**
+   * Persists the current plugin settings to disk.
+   */
   async saveSettings() {
     await this.saveData(this.settings);
   }
 };
 var ImageInlineSettingTab = class extends import_obsidian6.PluginSettingTab {
+  /**
+   * Stores the plugin reference used by this settings tab.
+   */
   constructor(app, plugin) {
     super(app, plugin);
     this.plugin = plugin;
   }
+  /**
+   * Builds the settings UI and wires changes back to persistent plugin state.
+   */
   display() {
     const { containerEl } = this;
     containerEl.empty();

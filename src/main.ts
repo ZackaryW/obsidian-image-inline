@@ -1,5 +1,5 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting, TFile } from 'obsidian';
-import { Base64Conversion, Base64File } from './utils/conversion';
+import { Base64Conversion, Base64File, buildOriginalBackupFilename, createImageFile } from './utils/conversion';
 import { linkDecorations } from './coms/antiLinkExpand';
 import { registerExportToLocal } from './comsContext/export';
 import { registerConvertImage } from './comsContext/convert';
@@ -39,10 +39,16 @@ const DEFAULT_SETTINGS: ImageInlineSettings = {
 	resizeSmallerFiles: false // Default to false
 }
 
+/**
+ * Coordinates inline-image conversion, editor hooks, and settings for the plugin lifecycle.
+ */
 export default class ImageInlinePlugin extends Plugin {
-	settings: ImageInlineSettings;
-	conversion: Base64Conversion;
+	settings!: ImageInlineSettings;
+	conversion!: Base64Conversion;
 
+	/**
+	 * Registers commands, editor integrations, and settings when the plugin loads.
+	 */
 	async onload() {
 		await this.loadSettings();
 		this.conversion = new Base64Conversion();
@@ -127,6 +133,9 @@ export default class ImageInlinePlugin extends Plugin {
 		this.addSettingTab(new ImageInlineSettingTab(this.app, this));
 	}
 
+	/**
+	 * Converts pasted or dropped images into inline Markdown or vault attachments based on settings.
+	 */
 	async handleImages(base64Files: Base64File[], editor: Editor) {
 		try {
 			if (!this.settings.enableResizing) {
@@ -159,14 +168,14 @@ export default class ImageInlinePlugin extends Plugin {
 							const activeFile = this.app.workspace.getActiveFile();
 							if (activeFile) {
 								const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-								const backupFilename = `${base64File.filename.replace('.png', '')}_original_${timestamp}.png`;
+								const backupFilename = buildOriginalBackupFilename(base64File, timestamp);
 								
 								const targetPath = await this.app.fileManager.getAvailablePathForAttachment(
 									backupFilename,
 									activeFile.path
 								);
 								
-								const file = new File([base64File.buffer], backupFilename, { type: 'image/png' });
+								const file = createImageFile(base64File, backupFilename);
 								await this.app.vault.createBinary(
 									targetPath,
 									await file.arrayBuffer()
@@ -192,7 +201,7 @@ export default class ImageInlinePlugin extends Plugin {
 				for (const attachment of attachments) {
 					const activeFile = this.app.workspace.getActiveFile();
 					if (activeFile) {
-						const file = new File([attachment.buffer], attachment.filename, { type: 'image/png' });
+						const file = createImageFile(attachment);
 						const targetPath = await this.app.fileManager.getAvailablePathForAttachment(
 							attachment.filename,
 							activeFile.path
@@ -212,28 +221,44 @@ export default class ImageInlinePlugin extends Plugin {
 				}
 			}
 		} catch (error) {
-			new Notice('Failed to process images: ' + error.message);
+			const message = error instanceof Error ? error.message : 'Unknown error';
+			new Notice('Failed to process images: ' + message);
 		}
 	}
 
+	/**
+	 * Loads persisted plugin settings and merges them with defaults.
+	 */
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
+	/**
+	 * Persists the current plugin settings to disk.
+	 */
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
 
 }
 
+/**
+ * Renders and saves user-configurable plugin settings inside Obsidian's settings UI.
+ */
 class ImageInlineSettingTab extends PluginSettingTab {
 	plugin: ImageInlinePlugin;
 
+	/**
+	 * Stores the plugin reference used by this settings tab.
+	 */
 	constructor(app: App, plugin: ImageInlinePlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
 
+	/**
+	 * Builds the settings UI and wires changes back to persistent plugin state.
+	 */
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
@@ -293,8 +318,8 @@ class ImageInlineSettingTab extends PluginSettingTab {
 					.addOption('smaller', 'Convert small images to base64')
 					.addOption('larger', 'Resize large images')
 					.setValue(this.plugin.settings.resizeStrategy)
-					.onChange(async (value: 'smaller' | 'larger') => {
-						this.plugin.settings.resizeStrategy = value;
+					.onChange(async (value) => {
+						this.plugin.settings.resizeStrategy = value as ImageInlineSettings['resizeStrategy'];
 						await this.plugin.saveSettings();
 						this.display(); // Refresh to show/hide strategy-specific settings
 					}));

@@ -1,0 +1,6 @@
+{
+  "plugin_id": "image-inline",
+  "package_name": "obsidian-image-inline",
+  "primary_build_command": "npm run build",
+  "primary_utils_test_command": "npm run test:utils"
+}

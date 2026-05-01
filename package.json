@@ -6,6 +6,7 @@
     "scripts": {
         "dev": "node esbuild.config.mjs",
         "test": "obs-dev plugin test --target testv",
+        "test:utils": "node --import tsx --test tests/utils/**/*.test.ts",
         "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
     },
     "keywords": [],
@@ -18,6 +19,7 @@
         "builtin-modules": "3.3.0",
         "esbuild": "^0.25.1",
         "obsidian": "latest",
+        "tsx": "^4.20.3",
         "tslib": "2.4.0",
         "typescript": "4.7.4"
     }

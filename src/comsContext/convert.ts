@@ -1,34 +1,34 @@
 import { App, Editor, Modal, Notice, TFile } from "obsidian";
-import { Base64File } from "../utils/conversion";
+import { Base64File, buildOriginalBackupFilename, createImageFile } from "../utils/conversion";
 import ImageInlinePlugin from "../main";
 
+/**
+ * Converts the selected vault image embed on the current line into an inline base64 image.
+ */
 class ConvertToBase64Modal extends Modal {
 	private file: TFile;
 	private editor: Editor;
 
+	/**
+	 * Captures the target image file and editor used for the one-line replacement.
+	 */
 	constructor(app: App, file: TFile, editor: Editor) {
 		super(app);
 		this.file = file;
 		this.editor = editor;
 	}
 
+	/**
+	 * Replaces the current local image embed with an inline Markdown image in the active editor line.
+	 */
 	async onOpen() {
 		const { contentEl } = this;
 		contentEl.createEl("h2", { text: "Convert to Base64" });
 
 		try {
-			// Read the file content
-			const arrayBuffer = await this.app.vault.readBinary(this.file);
-			const base64 = btoa(
-				String.fromCharCode(...new Uint8Array(arrayBuffer))
-			);
-			const mimeType =
-				this.file.extension === "png" ? "image/png" : "image/jpeg";
-			const base64Data = `data:${mimeType};base64,${base64}`;
-
-			// Create the markdown link
+			const inlineImage = await Base64File.fromTFile(this.file);
 			const markdown = `![[${this.file.name}]]`;
-			const newMarkdown = `![${this.file.name}](${base64Data})`;
+			const newMarkdown = inlineImage.to64Link();
 
 			// Replace the content
 			const cursor = this.editor.getCursor();
@@ -55,18 +55,25 @@ class ConvertToBase64Modal extends Modal {
 
 			new Notice("Image converted to base64");
 		} catch (error) {
-			new Notice("Failed to convert image: " + error.message);
+			const message = error instanceof Error ? error.message : "Unknown error";
+			new Notice("Failed to convert image: " + message);
 		}
 
 		this.close();
 	}
 
+	/**
+	 * Clears modal contents when the temporary conversion dialog closes.
+	 */
 	onClose() {
 		const { contentEl } = this;
 		contentEl.empty();
 	}
 }
 
+/**
+ * Downloads a remote image URL and wraps it as a Base64File with inferred filename metadata.
+ */
 async function fetchOnlineImage(url: string): Promise<Base64File> {
 	try {
 		const response = await fetch(url);
@@ -79,6 +86,8 @@ async function fetchOnlineImage(url: string): Promise<Base64File> {
 		if (!contentType) {
 			throw new Error("No content type received from server");
 		}
+
+		const mimeType = contentType.split(";")[0].trim();
 
 		if (!contentType.startsWith("image/")) {
 			throw new Error(
@@ -100,11 +109,11 @@ async function fetchOnlineImage(url: string): Promise<Base64File> {
 		filename = filename.split("?")[0];
 		// If no extension in filename, add one based on content type
 		if (!filename.includes(".")) {
-			const ext = contentType.split("/")[1] || "png";
+			const ext = mimeType.split("/")[1] || "png";
 			filename = `${filename}.${ext}`;
 		}
 
-		return new Base64File(arrayBuffer, filename);
+		return new Base64File({ buffer: arrayBuffer, filename, mimeType });
 	} catch (error) {
 		if (error instanceof Error) {
 			throw new Error(`Failed to fetch online image: ${error.message}`);
@@ -113,6 +122,9 @@ async function fetchOnlineImage(url: string): Promise<Base64File> {
 	}
 }
 
+/**
+ * Applies the plugin's resizing rules and optionally stores a backup of the original source image.
+ */
 async function handleImageResizing(
 	base64File: Base64File,
 	plugin: ImageInlinePlugin,
@@ -142,10 +154,7 @@ async function handleImageResizing(
 					const timestamp = new Date()
 						.toISOString()
 						.replace(/[:.]/g, "-");
-					const backupFilename = `${base64File.filename.replace(
-						".png",
-						""
-					)}_original_${timestamp}.png`;
+					const backupFilename = buildOriginalBackupFilename(base64File, timestamp);
 
 					const targetPath =
 						await plugin.app.fileManager.getAvailablePathForAttachment(
@@ -153,11 +162,7 @@ async function handleImageResizing(
 							activeFile.path
 						);
 
-					const file = new File(
-						[base64File.buffer],
-						backupFilename,
-						{ type: "image/png" }
-					);
+					const file = createImageFile(base64File, backupFilename);
 					await plugin.app.vault.createBinary(
 						targetPath,
 						await file.arrayBuffer()
@@ -170,6 +175,9 @@ async function handleImageResizing(
 	return { processedFile, shouldSaveAsAttachment };
 }
 
+/**
+ * Replaces a remote image URL on the current line with either an inline image or a local attachment.
+ */
 async function convertOnlineImageToBase64(
 	imageUrl: string,
 	plugin: ImageInlinePlugin,
@@ -189,11 +197,7 @@ async function convertOnlineImageToBase64(
 		);
 
 		if (shouldSaveAsAttachment && activeFile) {
-			const file = new File(
-				[base64File.buffer],
-				base64File.filename,
-				{ type: "image/png" }
-			);
+			const file = createImageFile(base64File);
 			const targetPath =
 				await plugin.app.fileManager.getAvailablePathForAttachment(
 					base64File.filename,
@@ -250,14 +254,14 @@ async function convertOnlineImageToBase64(
 
 		new Notice("Online image converted to base64");
 	} catch (error) {
-		if (error instanceof Error) {
-			new Notice(error.message);
-		} else {
-			new Notice("Failed to convert online image: Unknown error");
-		}
+		const message = error instanceof Error ? error.message : "Failed to convert online image: Unknown error";
+		new Notice(message);
 	}
 }
 
+/**
+ * Adds context menu actions for converting local and remote images on the active editor line.
+ */
 export async function registerConvertImage(plugin: ImageInlinePlugin) {
 	plugin.registerEvent(
 		plugin.app.workspace.on("editor-menu", async (menu, editor) => {
